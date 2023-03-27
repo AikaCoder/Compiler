@@ -38,6 +38,7 @@ public class LexRegex {
 
 
     /**
+     * 构造函数, 放入的是原始正则
      * @param rawRegex 原始正则表达式
      */
     public LexRegex(String rawRegex){
@@ -54,6 +55,8 @@ public class LexRegex {
     }
 
     /**
+     * 只有优先级为 `*` > `·` > `|` 的三个运算符, 以及括号()
+     * 例如 a·b*·(c|d)·e
      * @return 最简正则表达式
      */
     public String getSimpleRegex(){
@@ -61,7 +64,7 @@ public class LexRegex {
     }
 
     /**
-     * 得到该表达式的后缀表达式, 栈形式存储, 例如 ab|bc.*. 栈顶是a
+     * 得到表最简表达式的后缀形式, 栈形式存储, 例如 (a|b)·(b·c)* --> ab|bc·*· 栈顶是a
      * @return 后缀表达式
      */
     public Stack<ExpressionNode> getExpressionNodeStack() {
@@ -69,7 +72,7 @@ public class LexRegex {
     }
 
     /**
-     * 将在第一部分定义的, 用于简化替代的正则表达式添加到LexRegex类,
+     * 将在第一部分定义的, 用于简化替代的正则表达式添加到LexRegex类, 应该在调用构造函数之前使用
      * 例如:
      *  digital   [0-9]
      *  H         [a-fA-F0-9]
