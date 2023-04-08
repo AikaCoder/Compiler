@@ -1,9 +1,7 @@
-package org.sj.compiler;
+package org.SeuCompiler;
 
 public class Main {
     public static void main(String[] args) {
-        Test.TestRegex();
+        System.out.println("Hello world!");
     }
-
-
 }
