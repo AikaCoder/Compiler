@@ -31,7 +31,8 @@ class MatchedInsideBrace extends MatchedItems {
             String substitute = map.get(item.content());
             if(substitute == null){
                 SeuCompilerException exception = new SeuCompilerException(LexCodeEnum.NO_CORRESPONDING_USER_DEFINE);
-                exception.setOtherInfo("Corresponding defined name is "+item.content());
+                exception.setOtherInfo("简写 "+item.content()+" 未在前面找到对应定义.");
+                throw exception;
             }
 
             result = former + map.get(item.content()) + latter;

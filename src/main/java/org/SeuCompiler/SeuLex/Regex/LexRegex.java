@@ -1,7 +1,5 @@
 package org.SeuCompiler.SeuLex.Regex;
 
-import org.sj.compiler.lex.ExpressionNode;
-
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -10,7 +8,7 @@ import java.util.regex.Pattern;
 public class LexRegex {
     private final String rawRegex;    //原始正则
     private final String simpleRegex; //简单正则, 只有`|` `*` `.`运算和`()`
-    private Stack<ExpressionNode> expressionNodeStack = new Stack<>(); //最后将表达式转换为后缀表达式, 并以栈的形式存储
+    private String expressionNodeStack; //最后将表达式转换为后缀表达式, 并以栈的形式存储
 
     /**
      * 用户自定义的用于简化替换得正则表达式, 需要提前读入
@@ -49,7 +47,7 @@ public class LexRegex {
      * 得到表最简表达式的后缀形式, 栈形式存储, 例如 (a|b)·(b·c)* --> ab|bc·*· 栈顶是a
      * @return 后缀表达式
      */
-    public Stack<ExpressionNode> getExpressionNodeStack() {
+    public String getExpressionNodeStack() {
         return expressionNodeStack;
     }
 
@@ -93,8 +91,7 @@ public class LexRegex {
         MatchedInsideSquareBracket insideSquareBracket = new MatchedInsideSquareBracket(input);
         //确保[]不是在{}内
         insideSquareBracket.removeItemContainedIn(insideQuotation);
-
-        return input;
+        return insideSquareBracket.expand();
     }
 
     /**
@@ -111,8 +108,8 @@ public class LexRegex {
      * 将中缀表达式转换为后缀表达式
      * @return 后缀表达得正则表达式
      */
-    private Stack<ExpressionNode> turnToPostFix(String str){
-        return new Stack<>(); //todo
+    private String turnToPostFix(String str){
+        return str;
     }
 
 }
