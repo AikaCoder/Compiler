@@ -17,6 +17,8 @@ public enum LexCodeEnum implements ErrorCode {
 
     NO_CORRESPONDING_USER_DEFINE("1102", "没有与简写对应的用户定义"),
 
+    WRONG_LEX_RANGE_GRAMMAR("1103", "lex[]范围扩展错误")
+
     //LexParser异常 12xx
     ;
 

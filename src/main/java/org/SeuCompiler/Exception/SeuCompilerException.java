@@ -75,4 +75,7 @@ public class SeuCompilerException extends RuntimeException {
     public String getOtherInfo(){
         return this.otherInfo;
     }
+    public void addOtherInfo(final String addInfo){
+        this.otherInfo = this.otherInfo+ "\t" + addInfo;
+    }
 }
