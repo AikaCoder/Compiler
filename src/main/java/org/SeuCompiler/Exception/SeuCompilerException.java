@@ -1,6 +1,6 @@
 package org.SeuCompiler.Exception;
 
-public class SeuCompilerException extends RuntimeException {
+public class SeuCompilerException extends Exception {
 
     /** 错误码 */
     private final ErrorCode errorCode;
@@ -25,12 +25,33 @@ public class SeuCompilerException extends RuntimeException {
     }
 
     /**
+     * 根据指定描述构造通用异常
+     * @param description 对异常的描述
+     * @param otherInfo 帮助定位异常的其他信息
+     */
+    public SeuCompilerException(final String description, final String otherInfo){
+        super(description);
+        this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
+        this.otherInfo = otherInfo;
+    }
+    /**
      * 根据指定错误码创建异常
      * @param errorCode 指定错误码
      */
     public SeuCompilerException(final ErrorCode errorCode){
         super(errorCode.getDescription());
         this.errorCode = errorCode;
+    }
+
+    /**
+     * 根据指定错误码创建异常
+     * @param errorCode 错误码
+     * @param otherInfo 帮助定位异常的其他信息
+     */
+    public SeuCompilerException(final ErrorCode errorCode, final String otherInfo){
+        super(errorCode.getDescription());
+        this.errorCode = errorCode;
+        this.otherInfo = otherInfo;
     }
 
     /**
