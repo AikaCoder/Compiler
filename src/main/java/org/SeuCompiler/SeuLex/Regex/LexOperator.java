@@ -5,7 +5,7 @@ enum LexOperator {
     ADD('+', 3, true),
     STAR('*', 3, true),
     QUESTION('?', 3, true),
-    DOT('·', 2, false),
+    DOT('.', 2, false),
     OR('|', 1, false),
     LEFT_BRACKET('(',0, false),
     RIGHT_BRACKET(')',0,false),

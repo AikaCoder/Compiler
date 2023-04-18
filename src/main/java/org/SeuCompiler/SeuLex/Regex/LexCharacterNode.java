@@ -1,7 +1,7 @@
 package org.SeuCompiler.SeuLex.Regex;
 
 class LexCharacterNode {
-    private Boolean isOperator;
+    private final Boolean isOperator;
     private LexOperator operator = LexOperator.UNSPECIFIED;
     private Character character = null;
 
@@ -23,10 +23,6 @@ class LexCharacterNode {
     }
 
     public Character getCharacter(){
-        return character;
-    }
-
-    public Character toCharacter() {
         if(isOperator) return operator.getCharacter();
         return this.character;
     }

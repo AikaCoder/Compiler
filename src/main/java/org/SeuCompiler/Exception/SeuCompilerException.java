@@ -3,7 +3,7 @@ package org.SeuCompiler.Exception;
 public class SeuCompilerException extends Exception {
 
     /** 错误码 */
-    private final ErrorCode errorCode;
+    private ErrorCode errorCode;
     /** 其他信息, 帮助定位bug */
     private String otherInfo = null;
 
@@ -85,8 +85,12 @@ public class SeuCompilerException extends Exception {
         this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
     }
 
-    public ErrorCode getErrorCode() {
-        return errorCode;
+    public String getCode() {
+        return errorCode.getCode();
+    }
+
+    public String getDescription(){
+        return errorCode.getDescription();
     }
 
     public void setOtherInfo(final String info){

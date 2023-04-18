@@ -2,45 +2,46 @@ package org.SeuCompiler.SeuLex.Regex;
 
 import org.SeuCompiler.Exception.LexErrorCodeEnum;
 import org.SeuCompiler.Exception.SeuCompilerException;
-
 import java.util.*;
 
 public class LexRegex {
     private enum State{
         Normal,     //一般状态
         Escape,     //需转义
-        Substitute, //需替代
         Expand,     //需扩展
         InQuot,    //在引号内
     }
-    private String rawStr;
-    private ArrayList<LexCharacterNode> suffixExpression;
+    private final String rawStr;
+    private final ArrayList<LexCharacterNode> postfixExpression;
+    private final ArrayList<LexCharacterNode> standardExpression;
 
     /**
-     * 用户自定义的用于简化替换得正则表达式, 需要提前读入
-     * 例如 digital [0-9]
+     * 初始化Regex
+     * @param str 原始正则
      */
-    private static HashMap<String, String> lexRegexSubstitutions = new HashMap<>();
-
     public LexRegex(String str) throws SeuCompilerException {
         this.rawStr = str;
+        ArrayList<LexCharacterNode> list = readFromStr(str);
+        standardExpression = new ArrayList<>(list);
+        postfixExpression = turnToSuffix(addDots(list));
+    }
 
+    private ArrayList<LexCharacterNode> readFromStr(String str) throws SeuCompilerException {
         StringBuffer strBuffer = new StringBuffer();
         State stateNow = State.Normal;
         ArrayList<LexCharacterNode> list = new ArrayList<>();
 
-        for(int i = 0;i<rawStr.length();i++){
-            char ch = rawStr.charAt(i);
+        for(int i = 0;i<str.length();i++){
+            char ch = str.charAt(i);
             switch (stateNow){
                 case Normal -> {
                     switch (ch){
                         case '\\' -> stateNow = State.Escape;
                         case '[' -> stateNow = State.Expand;
-                        case '{' -> stateNow = State.Substitute;
                         case '"' -> stateNow = State.InQuot;
-                        case ']', '}','>' -> throw new SeuCompilerException(LexErrorCodeEnum.NO_CORRESPONDING_FORMER, "Regex: " + rawStr);
-                        case '^', '-', '$' -> throw new SeuCompilerException(LexErrorCodeEnum.UNEXPECTED_CHARACTER, "字符: "+ch+ ", Regex: "+rawStr);
-                        case '%', '<' -> throw new SeuCompilerException(LexErrorCodeEnum.NO_SUPPORT);
+                        case ']' -> throw new SeuCompilerException(LexErrorCodeEnum.NO_CORRESPONDING_FORMER, "Regex: " + str);
+                        case '^', '-', '$', '>' -> throw new SeuCompilerException(LexErrorCodeEnum.UNEXPECTED_CHARACTER, "字符: "+ch+ ", Regex: "+str);
+                        case '%', '<', '{' -> throw new SeuCompilerException(LexErrorCodeEnum.NO_SUPPORT);
                         default -> {
                             if(LexOperator.isOperator(ch)) list.add(new LexCharacterNode(LexOperator.getByChar(ch)));
                             else list.add(new LexCharacterNode(ch));
@@ -62,24 +63,14 @@ public class LexRegex {
                     else strBuffer.append(ch);
 
                 }
-                case Substitute ->{
-                    if(ch == '}'){
-                        list.addAll(substitute(strBuffer));
-                        strBuffer.setLength(0);
-                        stateNow = State.Normal;
-                    }
-                    else strBuffer.append(ch);
-                }
                 case InQuot -> {
                     if(ch =='"') stateNow = State.Normal;
                     else list.add(new LexCharacterNode(ch));
-                }
-            }
+                }}
         }
         if(stateNow != State.Normal)
-            throw new SeuCompilerException(LexErrorCodeEnum.UNKNOWN_LEX_ERROR, "Regex: "+rawStr);
-
-        suffixExpression = turnToSuffix(addDots(list));
+            throw new SeuCompilerException(LexErrorCodeEnum.UNKNOWN_LEX_ERROR, "Regex: "+str);
+        return list;
     }
 
     /**
@@ -152,9 +143,10 @@ public class LexRegex {
             if(!expandResSet.contains('\t')) complementSet.add('\t');
             expandResSet = complementSet;
         }
+        List<Character> expandList = expandResSet.stream().sorted().toList();
         ArrayList<LexCharacterNode> list = new ArrayList<>();
         list.add(new LexCharacterNode(LexOperator.LEFT_BRACKET));
-        Iterator<Character> iterator = expandResSet.iterator();
+        Iterator<Character> iterator = expandList.iterator();
         list.add(new LexCharacterNode(iterator.next()));
         while(iterator.hasNext()){
             list.add(new LexCharacterNode(LexOperator.OR));
@@ -165,24 +157,6 @@ public class LexRegex {
     }
 
     /**
-     * 将{}内的内容按提前记录的对应关系展开
-     * @param buffer 字符串缓存
-     * @return Regex字符序列
-     */
-    private ArrayList<LexCharacterNode> substitute(StringBuffer buffer) throws SeuCompilerException {
-        String str = buffer.toString();
-        String substituteStr = lexRegexSubstitutions.get(str);
-        ArrayList<LexCharacterNode> list = new ArrayList<>();
-        if(substituteStr == null)
-            throw new SeuCompilerException(LexErrorCodeEnum.NO_CORRESPONDING_USER_DEFINE, "简写"+str+"未找到对应用户定义");
-        for(int i = 0; i<substituteStr.length();i++){
-            list.add(new LexCharacterNode(substituteStr.charAt(i)));
-        }
-        return list;
-    }
-
-
-    /**
      * 连续字符间加乘点算符, 例如
      * ab*(c|d)e -> a·b*·(c|d)·e
      * 优先级为 * > · > |
@@ -190,14 +164,15 @@ public class LexRegex {
      * @return 加点后的字符序列
      */
     private ArrayList<LexCharacterNode> addDots(ArrayList<LexCharacterNode> list){
-        ListIterator<LexCharacterNode> iterator = list.listIterator();
+        ArrayList<LexCharacterNode> resList = new ArrayList<>(list);
+        ListIterator<LexCharacterNode> iterator = resList.listIterator();
         while (iterator.hasNext()){
             LexCharacterNode node1 = iterator.next();
             LexCharacterNode node2;
             if(iterator.hasNext())
                 node2 = iterator.next();
             else
-                return list;
+                return resList;
             iterator.previous();
             if(
                 !( node1.getOperator() == LexOperator.LEFT_BRACKET
@@ -209,7 +184,7 @@ public class LexRegex {
                 || node2.getOperator() == LexOperator.ADD
             )) iterator.add(new LexCharacterNode(LexOperator.DOT));
         }
-        return list;
+        return resList;
     }
 
     /**
@@ -237,7 +212,7 @@ public class LexRegex {
                     resList.add(stack.pop());
                 }
                 if (stack.isEmpty())
-                    throw new SeuCompilerException(LexErrorCodeEnum.NO_CORRESPONDING_USER_DEFINE, "正则" + rawStr + "没有对应的括号");
+                    throw new SeuCompilerException(LexErrorCodeEnum.NO_CORRESPONDING_FORMER, "正则" + rawStr + "括号不匹配");
                 stack.pop();
             } else if (nodeOp.isUnary()) {
                 resList.add(node);
@@ -257,31 +232,32 @@ public class LexRegex {
         return resList;
     }
 
-    /**
-     * 将在第一部分定义的, 用于简化替代的正则表达式添加到LexRegex类, 应该在调用构造函数之前使用
-     * 例如:
-     *  digital   [0-9]
-     *  H         [a-fA-F0-9]
-     * @param name 用于替换的别名, 例如 digital
-     * @param regexStr 对应的正则表达式, 例如[0-9]
-     */
-    public static void addLexRegexSubstitutions(String name, String regexStr){
-        lexRegexSubstitutions.put(name, regexStr);
+    public String getRawStr(){
+        return rawStr;
     }
 
     /**
      * @return 得到后缀表达式列表
      */
-    public ArrayList<LexCharacterNode> getSuffixExpression() {
-        return suffixExpression;
+    public ArrayList<LexCharacterNode> getPostfixExpression() {
+        return postfixExpression;
     }
 
-    public String getRawStr(){
-        return rawStr;
-    }
-    public String getSuffixStr(){
+    public String getPostfixStr(){
         StringBuilder builder = new StringBuilder();
-        for(LexCharacterNode node : suffixExpression){
+        for(LexCharacterNode node : postfixExpression){
+            Character ch = node.getCharacter();
+            if(!node.isOperator() && LexOperator.isOperator(ch)){
+                builder.append('\\');
+            }
+            builder.append(ch);
+        }
+        return builder.toString();
+    }
+
+    public String getStandardExpressionStr(){
+        StringBuilder builder = new StringBuilder();
+        for(LexCharacterNode node : standardExpression){
             Character ch = node.getCharacter();
             if(!node.isOperator() && LexOperator.isOperator(ch)){
                 builder.append('\\');
