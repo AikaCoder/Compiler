@@ -1,18 +1,24 @@
 package org.SeuCompiler.Exception;
 
+/**
+ * 自定义异常类
+ * 参考自: <a href="https://blog.csdn.net/weixin_38399962/article/details/79582569">自定义异常处理</a>
+ */
 public class SeuCompilerException extends Exception {
 
     /** 错误码 */
     private ErrorCode errorCode;
-    /** 其他信息, 帮助定位bug */
+    /** 其他信息, 帮助解决 bug */
     private String otherInfo = null;
+    /** 错误所在行号 **/
+    private Integer lineNum = null;
 
     /**
      * 默认无参构造, 制定默认错误为 Unspecified
      */
     public SeuCompilerException(){
-        super(CompilerErrorCodeEnum.UNSPECIFIED_ERROR.getDescription());
-        this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
+        super(CompilerErrorCode.UNSPECIFIED_ERROR.getDescription());
+        this.errorCode = CompilerErrorCode.UNSPECIFIED_ERROR;
     }
 
     /**
@@ -21,7 +27,7 @@ public class SeuCompilerException extends Exception {
      */
     public SeuCompilerException(final String description){
         super(description);
-        this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
+        this.errorCode = CompilerErrorCode.UNSPECIFIED_ERROR;
     }
 
     /**
@@ -31,7 +37,7 @@ public class SeuCompilerException extends Exception {
      */
     public SeuCompilerException(final String description, final String otherInfo){
         super(description);
-        this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
+        this.errorCode = CompilerErrorCode.UNSPECIFIED_ERROR;
         this.otherInfo = otherInfo;
     }
     /**
@@ -71,7 +77,7 @@ public class SeuCompilerException extends Exception {
      */
     public SeuCompilerException(final String description, final  Throwable t){
         super(description, t);
-        this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
+        this.errorCode = CompilerErrorCode.UNSPECIFIED_ERROR;
     }
 
     /**
@@ -82,7 +88,7 @@ public class SeuCompilerException extends Exception {
      */
     public SeuCompilerException(final ErrorCode errorCode, final String description, final  Throwable t){
         super(description, t);
-        this.errorCode = CompilerErrorCodeEnum.UNSPECIFIED_ERROR;
+        this.errorCode = CompilerErrorCode.UNSPECIFIED_ERROR;
     }
 
     public String getCode() {
@@ -93,14 +99,19 @@ public class SeuCompilerException extends Exception {
         return errorCode.getDescription();
     }
 
-    public void setOtherInfo(final String info){
-        this.otherInfo = info;
-    }
-
     public String getOtherInfo(){
         return this.otherInfo;
     }
+
     public void addOtherInfo(final String addInfo){
         this.otherInfo = this.otherInfo+ "\t" + addInfo;
+    }
+
+    public void setLineNum(Integer lineNum) {
+        this.lineNum = lineNum;
+    }
+
+    public Integer getLineNum() {
+        return lineNum;
     }
 }

@@ -1,4 +1,8 @@
-/* 有限状态自动机（FA）的相关内容。裴爱华 2023/3/25 */
+/**
+ * 有限状态自动机（FA）的相关内容。裴爱华 2023/3/25
+ */
+
+package org.SeuCompiler.SeuLex.FiniteAutomata;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,56 +38,6 @@ class State{
 
     public static boolean same(State one, State another) {
         return one.uuid.equals(another.uuid);
-    }
-}
-
-/**
- * 用在_acceptActionMap，表示一段动作代码及其出现次序
- */
-class Action {
-    private int order;
-    private String code;
-
-    public int getOrder() {
-        return order;
-    }
-
-    public void setOrder(int order) {
-        this.order = order;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
-    }
-}
-
-/**
- * 自动机状态转换
- */
-class Transform {
-    private int alpha; // 边上的字母（转换的条件）在this._alphabets中的下标，特殊下标见enum SpAlpha
-    private int target; // 目标状态在this._states中的下标
-
-    public int getAlpha() {
-        return alpha;
-    }
-
-    public void setAlpha(int alpha) {
-        this.alpha = alpha;
-    }
-
-    public int getTarget() { return target; }
-
-    public void setTarget(int target) {
-        this.target = target;
-    }
-
-    public boolean same(Transform another) {
-        return (this.alpha == another.alpha && this.target == another.target);
     }
 }
 

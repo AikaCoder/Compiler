@@ -1,5 +1,6 @@
 import org.SeuCompiler.Exception.SeuCompilerException;
 import org.SeuCompiler.SeuLex.Regex.LexRegex;
+import org.SeuCompiler.SeuLex.Regex.LexRegexBuilder;
 import org.junit.Test;
 
 public class RegexTest {
@@ -7,7 +8,8 @@ public class RegexTest {
     @Test
     public void testPositive(){
         try {
-            LexRegex regex = new LexRegex("[ab0-2MCA-C\\[\\]]\"TEST\"\\\"");
+            LexRegexBuilder builder = new LexRegexBuilder("[ab0-2MCA-C\\[\\]]\"TEST\"\\\"");
+            LexRegex regex = builder.build();
             System.out.println(regex.getRawStr());
             System.out.println(regex.getStandardExpressionStr());
             System.out.println(regex.getPostfixStr());
@@ -21,7 +23,8 @@ public class RegexTest {
     @Test
     public void testNegativeExpand(){
         try {
-            LexRegex regex = new LexRegex("[^abc]");
+            LexRegexBuilder builder = new LexRegexBuilder("[^abc]");
+            LexRegex regex = builder.build();
             System.out.println(regex.getRawStr());
             System.out.println(regex.getStandardExpressionStr());
             System.out.println(regex.getPostfixStr());

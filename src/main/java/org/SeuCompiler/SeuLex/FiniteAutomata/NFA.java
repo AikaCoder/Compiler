@@ -1,3 +1,5 @@
+package org.SeuCompiler.SeuLex.FiniteAutomata;
+
 import java.util.*;
 
 class NFA extends FiniteAutomata {
