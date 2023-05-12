@@ -4,13 +4,10 @@
 
 package org.SeuCompiler.SeuLex.FiniteAutomata;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.function.Predicate;
 import java.lang.Object;
+import java.util.stream.Collectors;
 
 /**
  * 自动机状态
@@ -32,12 +29,18 @@ class State{
     }
 
     // 判断两个状态是不是一样的
-    public boolean same(State another) {
-        return this.uuid.equals(another.uuid);
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        State state = (State) o;
+        return Objects.equals(uuid, state.uuid);
     }
 
-    public static boolean same(State one, State another) {
-        return one.uuid.equals(another.uuid);
+    @Override
+    public int hashCode() {
+        return Objects.hash(uuid);
     }
 }
 
@@ -45,31 +48,68 @@ class State{
  * 特殊字符枚举
  */
 enum SpAlpha {
-    EPSILON(-1), // ε
-    ANY(-2), // . (any character, except \n, not ε)
-    OTHER(-3); // other character not mentioned
+    EPSILON(-1, "[ε]"), // ε
+    ANY(-2, "[any]"), // . (any character, except \n, not ε)
+    OTHER(-3, "[other]"); // other character not mentioned
 
     private final int value;
+    private final String str;
 
-    SpAlpha(int value) {
+    SpAlpha(int value, String str) {
         this.value = value;
+        this.str = str;
     }
 
     public int getValue() {
         return value;
     }
+
+    public String getStr() {
+        return str;
+    }
 }
 
 /**
- * 将特殊字符下标转为字符描述
+ * 自动机状态转换
  */
-class SpAlphaUtil {
-    public static String getSpAlpha(int alpha) {
-        Map<Integer, String> table = new HashMap<>();
-        table.put(-1, "[ε]");
-        table.put(-2, "[any]");
-        table.put(-3, "[other]");
-        return table.getOrDefault(alpha, "");
+class Transform {
+    private Integer alpha; // 边上的字母（转换的条件）在this._alphabets中的下标，特殊下标见enum SpAlpha
+    private Integer target; // 目标状态在this._states中的下标
+
+    Transform(int alpha, int target){
+        this.alpha = alpha;
+        this.target = target;
+    }
+
+    Transform(){};
+
+    public Integer getAlpha() {
+        return alpha;
+    }
+
+    public void setAlpha(int alpha) {
+        this.alpha = alpha;
+    }
+
+    public int getTarget() {
+        return target;
+    }
+
+    public void setTarget(int target) {
+        this.target = target;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Transform transform = (Transform) o;
+        return Objects.equals(alpha, transform.alpha) && Objects.equals(target, transform.target);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(alpha, target);
     }
 }
 
@@ -80,7 +120,7 @@ class FiniteAutomata {
     protected List<String> alphabet; // 字母表
     protected List<State> states; // 全部状态
     protected List<State> startStates; // 初始状态
-    protected List<State> acceptStates; // 接收状态
+    protected List<State> acceptStates; // 可接受状态
     protected List<List<Transform>> transformAdjList; // 状态转移邻接链表
 
     public List<State> getStartStates() {
@@ -108,9 +148,9 @@ class FiniteAutomata {
      * @param state 出发状态
      * @param spAlpha 如果定义，则只考虑该列表中的字母的转移
      */
-    protected List<Transform> getTransforms(State state, int[] spAlpha) {
+    protected List<Transform> getTransforms(State state, List<Integer> spAlpha) {
         List<Transform> res = new ArrayList<>();
-        List<Transform> T_temp = transformAdjList.get(findIndex(states, state));
+        List<Transform> T_temp = transformAdjList.get(states.indexOf(state));
         // 深拷贝
         for(Transform t : T_temp){
             Transform temp = new Transform();
@@ -121,7 +161,7 @@ class FiniteAutomata {
         if (spAlpha != null) {
             List<Transform> filteredRes = new ArrayList<>();
             for (Transform v : res) {
-                if (contains(spAlpha, v.getAlpha())) {
+                if (spAlpha.contains(v.getAlpha())) {
                     Transform temp = new Transform();
                     temp.setAlpha(v.getAlpha());
                     temp.setTarget(v.getTarget());
@@ -145,7 +185,7 @@ class FiniteAutomata {
             T_temp.setTarget(t.getTarget());
             temp.add(T_temp);
         }
-        transformAdjList.set(findIndex(states, state), temp);
+        transformAdjList.set(states.indexOf(state), temp);
     }
 
     /**
@@ -157,11 +197,11 @@ class FiniteAutomata {
         res.startStates = new ArrayList<>();
         res.acceptStates = new ArrayList<>();
         for (int i = 0; i < fa.states.size(); i++) {
-            if (contains(fa.startStates, fa.states.get(i))) {
+            if (fa.startStates.contains(fa.states.get(i))) {
                 State newState = new State();
                 res.startStates.add(newState);
                 res.states.add(newState);
-            } else if (contains(fa.acceptStates, fa.states.get(i))) {
+            } else if (fa.acceptStates.contains(fa.states.get(i))) {
                 State newState = new State();
                 res.acceptStates.add(newState);
                 res.states.add(newState);
@@ -174,43 +214,6 @@ class FiniteAutomata {
         res.alphabet.addAll(fa.alphabet);
         res.transformAdjList = deepCopy(fa.transformAdjList);
         return res;
-    }
-
-    private static <T> int findIndex(List<T> array, T value) {
-        for (int i = 0; i < array.size(); i++) {
-            if (array.get(i).equals(value)) return i;
-        }
-        return -1;
-    }
-
-    private static <T> T[] filter(T[] array, Predicate<T> predicate) {
-        ArrayList<T> list = new ArrayList<>();
-        for (T t : array) {
-            if (predicate.test(t)) {
-                list.add(t);
-            }
-        }
-        return list.toArray(Arrays.copyOf(array, 0));
-    }
-
-    private static boolean contains(List<State> array, State value) {
-        for (State s : array) if (s.same(value)) return true;
-        return false;
-    }
-
-    private static boolean contains(List<Transform> array, Transform value){
-        for (Transform t : array) if (t.same(value)) return true;
-        return false;
-    }
-
-    private static boolean contains(int[] array, int value) {
-        for (int i : array) if (i == value) return true;
-        return false;
-    }
-
-    private static boolean contains(Object[] array, Object value) {
-        for (Object o : array) if (o.equals(value)) return true;
-        return false;
     }
 
     private static List<List<Transform>> deepCopy(List<List<Transform>> original) {

@@ -29,7 +29,7 @@ public class LexParser {
     private final Map<LexRegex, Action> regexActionMap = new HashMap<>();
     private final Map<String, String> aliasRegexMap = new HashMap<>();
 
-    private int actionOrder = 0;
+    private int actionOrder = 0;    //记录代码行数, 从而实现不同优先级
 
     public String getCopyPart() {
         return copyPartBuilder.toString();

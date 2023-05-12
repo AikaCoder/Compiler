@@ -37,9 +37,9 @@ class NFA extends FiniteAutomata {
             temp_1.add(T_temp);
             nfa.transformAdjList.add(temp_1);
             nfa.transformAdjList.add(temp_2);
-        } else {
-            nfa.alphabet.add(SpAlphaUtil.getSpAlpha((int) initAlpha));
-            T_temp.setAlpha((int) initAlpha);
+        } else if(initAlpha instanceof SpAlpha) {
+            nfa.alphabet.add(((SpAlpha) initAlpha).getStr());
+            T_temp.setAlpha(((SpAlpha) initAlpha).getValue());
             T_temp.setTarget(1);
             List<Transform> temp_1 = new ArrayList<>();
             List<Transform> temp_2 = new ArrayList<>(); // 为空，表示接收态没有出边
@@ -58,11 +58,11 @@ class NFA extends FiniteAutomata {
     public static NFA copy(NFA nfa) {
         NFA res = new NFA();
         for (int i = 0; i < nfa.states.size(); i++) {
-            if (contains(nfa.startStates, nfa.states.get(i))) {
+            if (nfa.startStates.contains(nfa.states.get(i))) {
                 State newState = new State();
                 res.startStates.add(newState);
                 res.states.add(newState);
-            } else if (contains(nfa.acceptStates, nfa.acceptStates.get(i))) {
+            } else if (nfa.acceptStates.contains(nfa.acceptStates.get(i))) {
                 State newState = new State();
                 res.acceptStates.add(newState);
                 res.states.add(newState);
@@ -82,11 +82,13 @@ class NFA extends FiniteAutomata {
      */
     public List<State> epsilonClosure(List<State> states) {
         List<State> result = new ArrayList<>(states);
-        int[] epsilonspAlpha = {SpAlpha.EPSILON.getValue()};
+        List<Integer> epsilonSpAlpha = new ArrayList<>(SpAlpha.EPSILON.getValue());
         // stream可以提供一种类似于数据库查询的方式
         for (int i = 0; i < result.size(); i++) {
-            List<State> transitions = getTransforms(result.get(i), epsilonspAlpha).stream()
-                    .map(t -> states.get(t.getTarget())).filter(s -> !result.contains(s)).toList();
+            List<State> transitions = getTransforms(result.get(i), epsilonSpAlpha).stream()
+                    .map(t -> states.get(t.getTarget()))
+                    .filter(s -> !result.contains(s))
+                    .toList();
             result.addAll(transitions);
         }
         return result;
@@ -98,7 +100,7 @@ class NFA extends FiniteAutomata {
      * // @param alpha 字母在字母表的下标
      */
     public List<State> expand(State state, int alpha) {
-        List<State> preExpand = epsilonClosure(List.of(state)); // 所有可行的出发状态
+        List<State> preExpand = epsilonClosure(List.of(state)); // 所有可行的 出发状态
         List<State> result = new ArrayList<>();
         for (State s : preExpand) {
             List<Transform> transforms = getTransforms(s, null); // 该状态的所有转移
@@ -176,33 +178,33 @@ class NFA extends FiniteAutomata {
      */
     public void kleene() {
         // new_start --epsilon--> old_start
-        List<State> oldStartstates = new ArrayList<>();
+        List<State> oldStartStates = new ArrayList<>();
         for (State s : this.startStates) {
             State temp = new State(s.getUuid());
-            oldStartstates.add(temp);
+            oldStartStates.add(temp);
         }
         State newStartState = new State();
         this.startStates = new ArrayList<>();
         this.startStates.add(newStartState);
         this.states.add(newStartState);
         this.transformAdjList.add(new ArrayList<>());
-        linkEpsilon(this.startStates, oldStartstates);
+        linkEpsilon(this.startStates, oldStartStates);
         // old_accept --epsilon--> new_accept
-        List<State> oldAcceptstates = new ArrayList<>();
+        List<State> oldAcceptStates = new ArrayList<>();
         for (State s : this.acceptStates) {
             State temp = new State(s.getUuid());
-            oldAcceptstates.add(temp);
+            oldAcceptStates.add(temp);
         }
         State newAcceptState = new State();
         this.acceptStates = new ArrayList<>();
         this.acceptStates.add(newAcceptState);
         this.states.add(newAcceptState);
         this.transformAdjList.add(new ArrayList<>());
-        linkEpsilon(oldAcceptstates, this.acceptStates);
+        linkEpsilon(oldAcceptStates, this.acceptStates);
         // new_start --epsilon--> new_accept
         this.linkEpsilon(this.startStates, this.acceptStates);
         // old_accept --epsilon--> old_start
-        this.linkEpsilon(oldAcceptstates, oldStartstates);
+        this.linkEpsilon(oldAcceptStates, oldStartStates);
     }
 
     /**
@@ -216,9 +218,9 @@ class NFA extends FiniteAutomata {
         // 考虑epsilon边
         Stack<State> stack = new Stack<>();
         stack.push(currentState);
-        int[] epsilonspAlpha = {SpAlpha.EPSILON.getValue()};
+        List<Integer> epsilonSpAlpha = new ArrayList<>(SpAlpha.EPSILON.getValue());
         while (!stack.isEmpty()) {
-            List<Transform> transforms = getTransforms(stack.pop(), epsilonspAlpha);
+            List<Transform> transforms = getTransforms(stack.pop(), epsilonSpAlpha);
             for (Transform transform : transforms) {
                 // 遍历所有epsilon转移
                 State targetState = this.states.get(transform.getTarget());
@@ -345,33 +347,6 @@ class NFA extends FiniteAutomata {
             res.linkEpsilon(res.startStates, nfa.startStates);
         }
         return res;
-    }
-
-    private static <T> int findIndex(List<T> array, T value) {
-        for (int i = 0; i < array.size(); i++) {
-            if (array.get(i).equals(value)) return i;
-        }
-        return -1;
-    }
-
-    private static boolean contains(List<State> array, State value) {
-        for (State s : array) if (s.same(value)) return true;
-        return false;
-    }
-
-    private static boolean contains(List<Transform> array, Transform value){
-        for (Transform t : array) if (t.same(value)) return true;
-        return false;
-    }
-
-    private static boolean contains(int[] array, int value) {
-        for (int i : array) if (i == value) return true;
-        return false;
-    }
-
-    private static boolean contains(Object[] array, Object value) {
-        for (Object o : array) if (o.equals(value)) return true;
-        return false;
     }
 
     private static List<List<Transform>> deepCopy(List<List<Transform>> original) {
