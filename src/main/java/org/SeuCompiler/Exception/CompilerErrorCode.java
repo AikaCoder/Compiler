@@ -2,11 +2,11 @@ package org.SeuCompiler.Exception;
 
 import java.util.Objects;
 
-public enum CompilerErrorCodeEnum implements ErrorCode {
+public enum CompilerErrorCode implements ErrorCode {
     //compiler 异常00xx
     //未定义异常
     UNSPECIFIED_ERROR("0000", "未定义的Compiler异常"),
-
+    BUILD_NFA_FAILED("0001", "未能成果构建NFA");
     ;
 
     /**
@@ -20,7 +20,7 @@ public enum CompilerErrorCodeEnum implements ErrorCode {
      * @param code 错误码
      * @param description 错误描述
      */
-    CompilerErrorCodeEnum(final String code, final String description){
+    CompilerErrorCode(final String code, final String description){
         this.code = code;
         this.description = description;
     }
@@ -30,8 +30,8 @@ public enum CompilerErrorCodeEnum implements ErrorCode {
      * @param code 错误码
      * @return 枚举
      */
-    public static CompilerErrorCodeEnum getByCode(String code){
-        for(CompilerErrorCodeEnum value : CompilerErrorCodeEnum.values()){
+    public static CompilerErrorCode getByCode(String code){
+        for(CompilerErrorCode value : CompilerErrorCode.values()){
             if(Objects.equals(code, value.getCode())){
                 return value;
             }
