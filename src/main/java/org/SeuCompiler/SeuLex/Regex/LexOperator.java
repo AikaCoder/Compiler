@@ -1,25 +1,23 @@
 package org.SeuCompiler.SeuLex.Regex;
 
 enum LexOperator {
-    UNSPECIFIED,
+    UNSPECIFIED(null, null, null),
     ADD('+', 3, true),
     STAR('*', 3, true),
     QUESTION('?', 3, true),
-    DOT('.', 2, false),
+    DOT('·', 2, false), //不是ASCII字符
     OR('|', 1, false),
     LEFT_BRACKET('(',0, false),
     RIGHT_BRACKET(')',0,false),
+    ANY('.', null, null)
     ;
     private final Character character;
-    private int priority = -1;
-    private boolean isUnary = false;  //是否为1元操作符
-    LexOperator(Character ch, int priority, boolean isUnary){
+    private final Integer priority;
+    private final Boolean isUnary;  //是否为1元操作符
+    LexOperator(Character ch, Integer priority, Boolean isUnary){
         this.character = ch;
         this.priority = priority;
         this.isUnary = isUnary;
-    }
-    LexOperator(){
-        character = null;
     }
 
     public Character getCharacter(){

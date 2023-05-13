@@ -1,174 +1,152 @@
 package org.SeuCompiler.SeuLex.FiniteAutomata;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.*;
+import java.util.stream.Collectors;
 
-class NFA extends FiniteAutomata {
-    private Map<State, Action> acceptActionMap; // 接收态对应的动作
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class NFA{
+    protected Set<State> startStates = new HashSet<>();
+    protected Set<State> acceptStates = new HashSet<>();
+    protected Set<State> states = new HashSet<>();   //使用ArrayList主要是为了方便拷贝时查询
+    protected Set<FAString> alphabet = new HashSet<>();
+    protected Map<State, Transform> transforms = new HashMap<>();
+    private final Map<State, Action> acceptActionMap = new HashMap<>();
 
-    // 构造一个空NFA
-    public NFA() {
-        super();
-        this.acceptActionMap = new HashMap<>(); // 接收态对应的动作
-    }
-
-    public Map<State, Action> getAcceptActionMap() {
-        return acceptActionMap;
-    }
-
-    // 构造一个形如`->0 --a--> [1]`的原子NFA（两个状态，之间用初始字母连接）
-    // `initAlpha`也可以为SpAlpha枚举
-    public static NFA atom(Object initAlpha) {
+    public NFA copy() {
         NFA nfa = new NFA();
-        // 开始状态
-        nfa.startStates.add(new State());
-        // 接收状态
-        nfa.acceptStates.add(new State());
-        // 全部状态
-        nfa.states.addAll(nfa.startStates);
-        nfa.states.addAll(nfa.acceptStates);
-        // 字母表与状态转移邻接链表
-        Transform T_temp = new Transform();
-        if (initAlpha instanceof String) {
-            nfa.alphabet.add((String) initAlpha);
-            T_temp.setAlpha(0);
-            T_temp.setTarget(1);
-            List<Transform> temp_1 = new ArrayList<>();
-            List<Transform> temp_2 = new ArrayList<>(); // 为空，表示接收态没有出边
-            temp_1.add(T_temp);
-            nfa.transformAdjList.add(temp_1);
-            nfa.transformAdjList.add(temp_2);
-        } else if(initAlpha instanceof SpAlpha) {
-            nfa.alphabet.add(((SpAlpha) initAlpha).getStr());
-            T_temp.setAlpha(((SpAlpha) initAlpha).getValue());
-            T_temp.setTarget(1);
-            List<Transform> temp_1 = new ArrayList<>();
-            List<Transform> temp_2 = new ArrayList<>(); // 为空，表示接收态没有出边
-            temp_1.add(T_temp);
-            nfa.transformAdjList.add(temp_1);
-            nfa.transformAdjList.add(temp_2);
+        nfa.alphabet.addAll(this.alphabet);
+
+        Map<State, State> oldNewMap = new HashMap<>();
+        for (State s : this.states) {
+            State newState = new State();
+            if (this.startStates.contains(s)) nfa.startStates.add(newState);
+            if (this.acceptStates.contains(s)) nfa.acceptStates.add(newState);
+            nfa.states.add(newState);
+            oldNewMap.put(s, newState);
         }
 
+        this.transforms.forEach((begin, transform) -> {
+            nfa.transforms.put(oldNewMap.get(begin), transform.copyByMap(oldNewMap));
+        });
+        this.acceptActionMap.forEach((state, action) -> {
+            nfa.acceptActionMap.put(oldNewMap.get(state), action);
+        });
         return nfa;
     }
 
-    /*
-     * 返回形状一致的新NFA（深拷贝，State的Symbol生成新的，与原NFA互不关联）
-     * 其实和FA.java文件中的copy作用相同
+    /**
+     * 构造一个形如`->0 --a--> [1]`的原子NFA（两个状态，之间用初始字母连接）
+     * @param init 初始字符串
+     * @return 原子NFA
      */
-    public static NFA copy(NFA nfa) {
-        NFA res = new NFA();
-        for (int i = 0; i < nfa.states.size(); i++) {
-            if (nfa.startStates.contains(nfa.states.get(i))) {
-                State newState = new State();
-                res.startStates.add(newState);
-                res.states.add(newState);
-            } else if (nfa.acceptStates.contains(nfa.acceptStates.get(i))) {
-                State newState = new State();
-                res.acceptStates.add(newState);
-                res.states.add(newState);
-            } else {
-                State newState = new State();
-                res.states.add(newState);
-            }
-        }
-        res.alphabet.addAll(nfa.alphabet);
-        res.transformAdjList = deepCopy(nfa.transformAdjList);
-        return res;
+    public static NFA atom(FAString init){
+        NFA nfa = new NFA();
+        State start = new State();
+        State end = new State();
+        nfa.startStates.add(start);
+        nfa.acceptStates.add(end);
+        nfa.states.addAll(nfa.startStates);
+        nfa.states.addAll(nfa.acceptStates);
+        nfa.alphabet.add(init);
+        nfa.transforms.put(start, new Transform(init, Set.of(end)));
+        return nfa;
     }
 
     /**
      * 获得epsilon闭包，即从某状态集合只通过epsilon边所能到达的所有状态（包括自身）
-     * // @param states 状态集合
+     * @param states 初始状态集
+     * @return 闭包状态集
      */
-    public List<State> epsilonClosure(List<State> states) {
-        List<State> result = new ArrayList<>(states);
-        List<Integer> epsilonSpAlpha = new ArrayList<>(SpAlpha.EPSILON.getValue());
-        // stream可以提供一种类似于数据库查询的方式
-        for (int i = 0; i < result.size(); i++) {
-            List<State> transitions = getTransforms(result.get(i), epsilonSpAlpha).stream()
-                    .map(t -> states.get(t.getTarget()))
-                    .filter(s -> !result.contains(s))
-                    .toList();
-            result.addAll(transitions);
-        }
-        return result;
+    public Set<State> epsilonClosure(Set<State> states){
+        Set<State> res =  new HashSet<>(states);
+        res.forEach((s) ->{
+            Set<State> addStates = getNextStates(s, SpecialChar.EPSILON)
+                    .stream()
+                    .filter(state -> !res.contains(state))
+                    .collect(Collectors.toSet());
+            res.addAll(addStates);
+        });
+        return res;
     }
 
     /**
      * 返回从某状态收到一个字母并消耗它后，能到达的所有其他状态（考虑了利用epsilon边进行预先和预后扩展）
-     * // @param state 某状态
-     * // @param alpha 字母在字母表的下标
+     * @param start 起始状态
+     * @param inStr 输入字符
+     * @return 扩展状态集
      */
-    public List<State> expand(State state, int alpha) {
-        List<State> preExpand = epsilonClosure(List.of(state)); // 所有可行的 出发状态
-        List<State> result = new ArrayList<>();
-        for (State s : preExpand) {
-            List<Transform> transforms = getTransforms(s, null); // 该状态的所有转移
-            for (Transform t : transforms) {
-                if (
-                        t.getAlpha() == alpha ||
-                                (t.getAlpha() == SpAlpha.ANY.getValue() &&
-                                        !(this.alphabet.get(alpha).equals("\n")))
-                ) {
-                    result.add(this.states.get(t.getTarget())); // 能够吃掉当前字符后到达的所有状态
-                }
-            }
-        }
-        return new ArrayList<>(epsilonClosure(result)); // 再考虑一次epsilon拓展
+    public Set<State> expandWithEpsilonClosure(State start, FAString inStr){
+        Set<State> preExpand = epsilonClosure(Set.of(start));
+        Set<State> res = new HashSet<>();
+        preExpand.forEach(s -> {
+            res.addAll(getNextStates(s,inStr));
+            if(!inStr.equalsToStr("\n"))
+                res.addAll(getNextStates(s, SpecialChar.ANY));
+        });
+        return new HashSet<>(epsilonClosure(res));
     }
 
     /**
      * 返回从某状态集合通过一个字母能到达的所有状态（没有考虑epsilon边扩展）
-     * // @param states 状态集合
-     * // @param alpha 字母在字母表的下标
+     * @param start 起始状态
+     * @param inStr 输入字符
+     * @return 扩展状态集
      */
-    public List<State> move(List<State> states, int alpha) {
-        List<State> result = new ArrayList<>();
-        for (State s : states) {
-            List<Transform> transforms = getTransforms(s, null);
-            for (Transform t : transforms) {
-                if (
-                        t.getAlpha() == alpha ||
-                                (t.getAlpha() == SpAlpha.ANY.getValue() &&
-                                        !(this.alphabet.get(alpha).equals("\n")))
-                ) {
-                    // 这里注意分辨一下states到底是函数参数还是类参数
-                    State targetState = this.states.get(t.getTarget());
-                    if (!(result.contains(targetState))) {
-                        result.add(targetState);
-                    }
-                }
-            }
+    public Set<State> expand(Set<State> start, FAString inStr){
+        Set<State> res = new HashSet<>();
+        start.forEach(s -> {
+            res.addAll(getNextStates(s,inStr));
+            if(!inStr.equalsToStr("\n"))
+                res.addAll(getNextStates(s, SpecialChar.ANY));
+        });
+        return new HashSet<>(epsilonClosure(res));
+    }
+
+    /**
+     * 从每个状态出发, 不同字符的映射关系, 考虑了epsilon后扩展
+     * @param start 起始状态
+     * @return 字符 -> 经过Epsilon扩展的状态集合
+     */
+    public Transform expandTransformWithEpsilon(Set<State> start){
+        Transform res = new Transform();
+        for(State s : start){
+            transforms.get(s).getMap().forEach((str, states) -> {
+                res.add(str, epsilonClosure(states));
+            });
         }
-        return result;
+        return res;
     }
 
     /**
-     * 把`from`中的每个状态到`to`中的每个状态用字母alpha建立边
-     * // @param alpha 字母在字母表的下标
+     * 把`begin`中的每个状态到`end`中的每个状态用字母inStr建立边
+     * @param begins 开始状态集
+     * @param ends 结束状态集
+     * @param inStr 输入字符
      */
-    public void link(List<State> from, List<State> to, int alpha) {
-        for (State f : from) {
-            List<Transform> transforms = getTransforms(f, null);
-            for (State t : to) {
-                Transform newTransform = new Transform();
-                newTransform.setAlpha(alpha);
-                newTransform.setTarget(states.indexOf(t));
-                transforms.add(newTransform);
-            }
-            this.setTransforms(f, transforms);
-        }
+    public void link(Set<State> begins, Set<State> ends, FAString inStr){
+        begins.forEach(b -> {
+            Set<State> newEnds = new HashSet<>(ends);
+            this.transforms.put(b, new Transform(inStr, newEnds));
+        });
     }
 
     /**
-     * 把`from`中的每个状态到`to`中的每个状态建立epsilon边
+     * 把`begin`中的每个状态到`end`中的每个状态用Epsilon建立边
+     * @param begins 开始状态集
+     * @param ends  结束状态集
      */
-    public void linkEpsilon(List<State> from, List<State> to) {
-        this.link(from, to, SpAlpha.EPSILON.getValue());
+    public void linkByEpsilon(Set<State> begins, Set<State> ends){
+        this.link(begins, ends, SpecialChar.EPSILON.toFAString());
     }
 
     /**
-     * 将当前NFA原地做Kleene闭包（星闭包），见龙书3.7.1节图3-34
+     * 将当前NFA原地做Kleene闭包（星闭包）
      * ```
      *      ________________ε_______________
      *     |                                ↓
@@ -176,88 +154,50 @@ class NFA extends FiniteAutomata {
      *              ↑______ε______|
      * ```
      */
-    public void kleene() {
-        // new_start --epsilon--> old_start
-        List<State> oldStartStates = new ArrayList<>();
-        for (State s : this.startStates) {
-            State temp = new State(s.getUuid());
-            oldStartStates.add(temp);
-        }
-        State newStartState = new State();
-        this.startStates = new ArrayList<>();
-        this.startStates.add(newStartState);
-        this.states.add(newStartState);
-        this.transformAdjList.add(new ArrayList<>());
-        linkEpsilon(this.startStates, oldStartStates);
-        // old_accept --epsilon--> new_accept
-        List<State> oldAcceptStates = new ArrayList<>();
-        for (State s : this.acceptStates) {
-            State temp = new State(s.getUuid());
-            oldAcceptStates.add(temp);
-        }
-        State newAcceptState = new State();
-        this.acceptStates = new ArrayList<>();
-        this.acceptStates.add(newAcceptState);
-        this.states.add(newAcceptState);
-        this.transformAdjList.add(new ArrayList<>());
-        linkEpsilon(oldAcceptStates, this.acceptStates);
-        // new_start --epsilon--> new_accept
-        this.linkEpsilon(this.startStates, this.acceptStates);
-        // old_accept --epsilon--> old_start
-        this.linkEpsilon(oldAcceptStates, oldStartStates);
+    public void kleene(){
+        Set<State> oldStarts = new HashSet<>(this.startStates);    //保存原有starts 到 oldStarts
+        State newStarts = new State();                              //新建一个状态作为start
+        this.startStates = new HashSet<>(){{add(newStarts);}};      //将新状态放入对应集合
+        this.states.add(newStarts);
+        linkByEpsilon(this.startStates, oldStarts);                //将新旧状态相连
+
+        Set<State> oldAccepts = new HashSet<>(this.acceptStates);
+        State newAccepts = new State();
+        this.startStates = new HashSet<>(){{add(newAccepts);}};
+        this.states.add(newAccepts);
+        linkByEpsilon(oldAccepts, this.acceptStates);
+
+        linkByEpsilon(this.startStates, this.acceptStates);
+        linkByEpsilon(oldAccepts, oldStarts);
     }
 
     /**
-     * 检测该状态是否到达接收状态（考虑了借助epsilon边预后扩展）
+     * 检测当前状态是否是可接受状态(考虑了epsilon扩展)
+     * @param current 目标当前状态
+     * @return 如果为可接受状态, 返回真
      */
-    public boolean hasReachedAccept (State currentState) {
-        // 不考虑epsilon边
-        if (this.acceptStates.contains(currentState)) {
-            return true;
-        }
-        // 考虑epsilon边
+    public boolean isAcceptable(State current){
+        if(this.acceptStates.contains(current)) return true;
+
         Stack<State> stack = new Stack<>();
-        stack.push(currentState);
-        List<Integer> epsilonSpAlpha = new ArrayList<>(SpAlpha.EPSILON.getValue());
-        while (!stack.isEmpty()) {
-            List<Transform> transforms = getTransforms(stack.pop(), epsilonSpAlpha);
-            for (Transform transform : transforms) {
-                // 遍历所有epsilon转移
-                State targetState = this.states.get(transform.getTarget());
-                // 如果到达接收状态就返回真
-                if (this.acceptStates.contains(targetState)) {
-                    return true;
-                }
-                // 否则放入栈等待进一步拓展
-                else if (!(stack.contains(targetState))) {
-                    stack.push(targetState);
-                }
+        stack.push(current);
+        while (!stack.empty()){
+            for(State s : getNextStates(stack.pop(), SpecialChar.EPSILON)){
+                if(this.acceptStates.contains(s)) return true;
+                if(!stack.contains(s)) stack.push(s);
             }
         }
         return false;
     }
 
     /**
-     * 就地合并`from`的状态转移表到`to`的。请保证先合并状态和字母表
+     * 将两个NFA的转换关系transforms合并(from -> to), 需要先合并状态和字母表
+     * @param others 用来合并的nfa
      */
-    public static void mergeTransformAdjList(NFA from, NFA to) {
-        // 这里需要注意，原代码中的let关键字，其实是一种浅复制
-        List<List<Transform>> mergedAdjList = to.transformAdjList;
-        for (List<Transform> transforms : from.transformAdjList) {
-            List<Transform> mergedTransforms = new ArrayList<>();
-            // 重构from中的所有转移
-            for(Transform transform : transforms) {
-                int indexOfAlphaInTo = transform.getAlpha() < 0 ?
-                        transform.getAlpha() : to.alphabet.indexOf(from.alphabet.get(transform.getAlpha()));
-                int indexOfTargetInTo = to.states.indexOf(from.states.get(transform.getTarget()));
-                Transform newTransform = new Transform();
-                newTransform.setAlpha(indexOfAlphaInTo);
-                newTransform.setTarget(indexOfTargetInTo);
-                mergedTransforms.add(newTransform);
-            }
-            mergedAdjList.add(mergedTransforms); // 这里是一种浅拷贝，修改mergedAdjList其实就是修改to.transformAdjList
-        }
+    public void addTransformsFrom(NFA others){
+        others.transforms.forEach(this::addTransform);
     }
+
 
     /**
      * 串联两个NFA，丢弃所有动作
@@ -265,22 +205,17 @@ class NFA extends FiniteAutomata {
      * NFA1 --epsilon--> NFA2
      * ```
      */
-    public static NFA serial (NFA nfa1, NFA nfa2) {
+    public static NFA serial(NFA nfa1, NFA nfa2){
         NFA res = new NFA();
-        // 处理开始状态、接收状态、状态、字母表
-        // 这里姑且采用浅拷贝，如有需要，后面加以修改
         res.startStates.addAll(nfa1.startStates);
         res.acceptStates.addAll(nfa2.acceptStates);
         res.states.addAll(nfa1.states);
         res.states.addAll(nfa2.states);
-        // 请注意，由于使用Set去重后展开，无法保证字母的下标与原先一致！
-        List<String> tempAlphabet = new ArrayList<>();
-        tempAlphabet.addAll(nfa1.alphabet);
-        tempAlphabet.addAll(nfa2.alphabet);
-        res.alphabet.addAll(tempAlphabet);
-        mergeTransformAdjList(nfa1, res);
-        mergeTransformAdjList(nfa2, res);
-        res.linkEpsilon(nfa1.acceptStates, nfa2.startStates);
+        res.alphabet.addAll(nfa1.alphabet);
+        res.alphabet.addAll(nfa2.alphabet);
+        res.addTransformsFrom(nfa1);
+        res.addTransformsFrom(nfa2);
+        res.linkByEpsilon(nfa1.acceptStates, nfa2.startStates);
         return res;
     }
 
@@ -296,24 +231,20 @@ class NFA extends FiniteAutomata {
         NFA res = new NFA();
         res.startStates.add(new State());
         res.acceptStates.add(new State());
-        // 合并alphabet
-        List<String> tempAlphabet = new ArrayList<>();
-        tempAlphabet.addAll(nfa1.alphabet);
-        tempAlphabet.addAll(nfa2.alphabet);
-        res.alphabet.addAll(tempAlphabet);
-        // 构造状态表
+        res.alphabet.addAll(nfa1.alphabet);
+        res.alphabet.addAll(nfa2.alphabet);
+
         res.states.addAll(res.startStates);
         res.states.addAll(nfa1.states);
         res.states.addAll(nfa2.states);
         res.states.addAll(res.acceptStates);
-        res.transformAdjList.add(new ArrayList<>()); // new_start
-        mergeTransformAdjList(nfa1, res);
-        mergeTransformAdjList(nfa2, res);
-        res.transformAdjList.add(new ArrayList<>()); // new_accept
-        res.linkEpsilon(res.startStates, nfa1.startStates);
-        res.linkEpsilon(res.startStates, nfa2.startStates);
-        res.linkEpsilon(nfa1.acceptStates, res.acceptStates);
-        res.linkEpsilon(nfa2.acceptStates, res.acceptStates);
+
+        res.addTransformsFrom(nfa1);
+        res.addTransformsFrom(nfa2);
+        res.linkByEpsilon(res.startStates, nfa1.startStates);
+        res.linkByEpsilon(res.startStates, nfa2.startStates);
+        res.linkByEpsilon(nfa1.acceptStates, res.acceptStates);
+        res.linkByEpsilon(nfa2.acceptStates, res.acceptStates);
         return res;
     }
 
@@ -327,43 +258,76 @@ class NFA extends FiniteAutomata {
      */
     public static NFA parallelAll (List<NFA> nfas) {
         NFA res = new NFA();
-        List<String> tempAlphabet = new ArrayList<>();
         res.startStates.add(new State());
         res.states.addAll(res.startStates);
         for (NFA nfa : nfas) {
             res.acceptStates.addAll(nfa.acceptStates);
             res.states.addAll(nfa.states);
-            tempAlphabet.addAll(nfa.alphabet);
+            res.alphabet.addAll(nfa.alphabet);
             for (State acc : nfa.acceptStates) {
                 res.acceptActionMap.put(acc, nfa.acceptActionMap.get(acc));
             }
         }
-        res.alphabet.addAll(tempAlphabet);
-        res.transformAdjList.add(new ArrayList<>()); // new_start
-        for (NFA nfa : nfas) {
-            mergeTransformAdjList(nfa, res);
-        }
-        for (NFA nfa : nfas) {
-            res.linkEpsilon(res.startStates, nfa.startStates);
-        }
+        for (NFA nfa : nfas)
+            res.addTransformsFrom(nfa);
+        for (NFA nfa : nfas)
+            res.linkByEpsilon(res.startStates, nfa.startStates);
         return res;
     }
+    void addTransform(State start, Transform transform){
+        if(this.transforms.containsKey(start))
+            this.transforms.get(start).merge(transform);
+        else
+            this.transforms.put(start, transform);
+    }
 
-    private static List<List<Transform>> deepCopy(List<List<Transform>> original) {
-        if (original == null) {
-            return null;
-        }
-        final List<List<Transform>> result = new ArrayList<>();
-        for (List<Transform> lt : original) {
-            List<Transform> temp = new ArrayList<>();
-            for(Transform t : lt){
-                Transform t_temp = new Transform();
-                t_temp.setAlpha(t.getAlpha());
-                t_temp.setTarget(t.getTarget());
-                temp.add(t_temp);
-            }
-            result.add(temp);
-        }
-        return result;
+    void addTransform(State start, FAString inStr, Set<State> states){
+        if(this.transforms.containsKey(start))
+            this.transforms.get(start).add(inStr, states);
+        else
+            this.transforms.put(start, new Transform(inStr, states));
+    }
+
+    /**
+     * 得到从State出发的所有一步转移关系
+     * 浅拷贝, 得到的结果与原 Map 无关, 但没有新建State
+     * @param start 出发的状态
+     * @return FAChar -> target 映射
+     */
+    Transform getTransformFrom(State start){
+        return new Transform(this.transforms.get(start));
+    }
+
+    /**
+     * 得到从State出发的所有状态
+     * 没有新建State
+     * @param start 出发的状态
+     * @return 目标状态集合
+     */
+    Set<State> getNextStates(State start){
+        return this.transforms.get(start).getAllStates();
+    }
+
+    /**
+     * 得到从State出发, 且输入字符 ch 内的所有一步转移关系
+     * 浅拷贝, 得到的结果与原 Map 无关, 但没有新建State
+     * @param start 出发的状态
+     * @param ch 输入字符
+     * @return FAChar -> target 映射
+     */
+    Transform getTransformFrom(State start, FAString ch){
+        return this.transforms.get(start).getTransform(ch);
+    }
+
+    Set<State> getNextStates(State start, FAString str){
+        return this.transforms.get(start).getAllStates(str);
+    }
+
+    Set<State> getNextStates(State start, String str){
+        return this.transforms.get(start).getAllStates(new FAString(str));
+    }
+
+    Set<State> getNextStates(State start, SpecialChar spChar){
+        return this.transforms.get(start).getAllStates(spChar.toFAString());
     }
 }
