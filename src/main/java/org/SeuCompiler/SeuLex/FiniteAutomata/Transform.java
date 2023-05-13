@@ -12,19 +12,19 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Transform {
-    Map<FAString, Set<State>> map = new HashMap<>();
+class Transform {
+    Map<FAChar, Set<State>> map = new HashMap<>();
 
     Transform(Transform other){
         this();
         this.map.putAll(other.map);
     }
 
-    Transform(FAString str, Set<State> states){
+    Transform(FAChar str, Set<State> states){
         this(Map.of(str, states));
     }
 
-    void add(FAString inStr, Set<State> inStates){
+    void add(FAChar inStr, Set<State> inStates){
         if(this.map.containsKey(inStr))
             this.map.get(inStr).addAll(inStates);
         else
@@ -39,7 +39,7 @@ public class Transform {
         return res;
     }
 
-    Set<State> getAllStates(FAString inStr){
+    Set<State> getAllStates(FAChar inStr){
         Set<State> res = new HashSet<>();
         this.map.forEach((str, states) -> {
             if(str.equals(inStr))
@@ -48,7 +48,7 @@ public class Transform {
         return res;
     }
 
-    Transform getTransform(FAString inStr){
+    Transform getTransform(FAChar inStr){
         Transform transform = new Transform();
         this.map.forEach((str, states) -> {
             if(str.equals(inStr))

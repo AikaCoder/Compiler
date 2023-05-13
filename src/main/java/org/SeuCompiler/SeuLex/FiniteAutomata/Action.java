@@ -5,7 +5,5 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public final class Action {
-    private final int order;
-    private final String code;
+public record Action(int order, String code) {
 }

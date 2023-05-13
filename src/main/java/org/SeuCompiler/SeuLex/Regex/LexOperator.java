@@ -1,6 +1,8 @@
 package org.SeuCompiler.SeuLex.Regex;
 
-enum LexOperator {
+import lombok.EqualsAndHashCode;
+
+public enum LexOperator {
     UNSPECIFIED(null, null, null),
     ADD('+', 3, true),
     STAR('*', 3, true),

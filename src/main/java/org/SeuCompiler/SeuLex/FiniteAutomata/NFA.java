@@ -3,6 +3,12 @@ package org.SeuCompiler.SeuLex.FiniteAutomata;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.SeuCompiler.Exception.CompilerErrorCode;
+import org.SeuCompiler.Exception.SeuCompilerException;
+import org.SeuCompiler.SeuLex.LexParser.LexParser;
+import org.SeuCompiler.SeuLex.Regex.LexCharacterNode;
+import org.SeuCompiler.SeuLex.Regex.LexOperator;
+import org.SeuCompiler.SeuLex.Regex.LexRegex;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -11,12 +17,50 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class NFA{
-    protected Set<State> startStates = new HashSet<>();
-    protected Set<State> acceptStates = new HashSet<>();
-    protected Set<State> states = new HashSet<>();   //使用ArrayList主要是为了方便拷贝时查询
-    protected Set<FAString> alphabet = new HashSet<>();
-    protected Map<State, Transform> transforms = new HashMap<>();
+    private Set<State> startStates = new HashSet<>();
+    private Set<State> acceptStates = new HashSet<>();
+    private Set<State> states = new HashSet<>();   //使用ArrayList主要是为了方便拷贝时查询
+    private Set<FAChar> alphabet = new HashSet<>();
+    private Map<State, Transform> transforms = new HashMap<>();
     private final Map<State, Action> acceptActionMap = new HashMap<>();
+
+    public static NFA buildFromRegex(LexRegex regex, Action action) throws SeuCompilerException {
+        Stack<NFA> stack = new Stack<>();
+        for(LexCharacterNode lexChar : regex.getPostfixExpression()){
+            if (lexChar.equals(LexOperator.OR)) stack.push(parallel(stack.pop(), stack.pop()));        // |
+            else if (lexChar.equals(LexOperator.DOT)) stack.push(serial(stack.pop(), stack.pop()));   // dot
+            else if (lexChar.equals(LexOperator.STAR)) stack.peek().kleene();     //*
+            else if (lexChar.equals(LexOperator.ADD)){  //A+ -> AA*
+                NFA nfa = stack.pop();
+                NFA copy = nfa.copy();
+                copy.kleene();
+                stack.push(serial(nfa, copy));
+            }else if(lexChar.equals(LexOperator.QUESTION)){ //A?
+                NFA nfa = stack.pop();
+                nfa.linkByEpsilon(nfa.startStates, nfa.acceptStates);
+                stack.push(nfa);
+            }else if(lexChar.equals(LexOperator.ANY)){  //`.`表示匹配所有字符
+                NFA.atom(SpecialChar.ANY.toFAString());
+            }else{
+                NFA.atom(new FAChar(lexChar.getCharacter()));
+            }
+        }
+
+        if(stack.size()!=1)
+            throw new SeuCompilerException(CompilerErrorCode.BUILD_NFA_FAILED);
+        NFA res = stack.pop();
+        if(action!=null)
+            res.acceptStates.forEach(s -> res.acceptActionMap.put(s, action));
+        return res;
+    }
+
+    public static NFA buildFromParser(LexParser parser) throws SeuCompilerException {
+        List<NFA> nfas = new ArrayList<>();
+        for(LexRegex regex : parser.getRegexActionMap().keySet()){
+            nfas.add(buildFromRegex(regex, parser.getRegexActionMap().get(regex)));
+        }
+        return parallelAll(nfas);
+    }
 
     public NFA copy() {
         NFA nfa = new NFA();
@@ -45,7 +89,7 @@ public class NFA{
      * @param init 初始字符串
      * @return 原子NFA
      */
-    public static NFA atom(FAString init){
+    public static NFA atom(FAChar init){
         NFA nfa = new NFA();
         State start = new State();
         State end = new State();
@@ -81,12 +125,12 @@ public class NFA{
      * @param inStr 输入字符
      * @return 扩展状态集
      */
-    public Set<State> expandWithEpsilonClosure(State start, FAString inStr){
+    public Set<State> expandWithEpsilonClosure(State start, FAChar inStr){
         Set<State> preExpand = epsilonClosure(Set.of(start));
         Set<State> res = new HashSet<>();
         preExpand.forEach(s -> {
             res.addAll(getNextStates(s,inStr));
-            if(!inStr.equalsToStr("\n"))
+            if(!inStr.equalsTo('\n'))
                 res.addAll(getNextStates(s, SpecialChar.ANY));
         });
         return new HashSet<>(epsilonClosure(res));
@@ -98,11 +142,11 @@ public class NFA{
      * @param inStr 输入字符
      * @return 扩展状态集
      */
-    public Set<State> expand(Set<State> start, FAString inStr){
+    public Set<State> expand(Set<State> start, FAChar inStr){
         Set<State> res = new HashSet<>();
         start.forEach(s -> {
             res.addAll(getNextStates(s,inStr));
-            if(!inStr.equalsToStr("\n"))
+            if(!inStr.equalsTo('\n'))
                 res.addAll(getNextStates(s, SpecialChar.ANY));
         });
         return new HashSet<>(epsilonClosure(res));
@@ -116,7 +160,7 @@ public class NFA{
     public Transform expandTransformWithEpsilon(Set<State> start){
         Transform res = new Transform();
         for(State s : start){
-            transforms.get(s).getMap().forEach((str, states) -> {
+            this.transforms.get(s).getMap().forEach((str, states) -> {
                 res.add(str, epsilonClosure(states));
             });
         }
@@ -129,7 +173,7 @@ public class NFA{
      * @param ends 结束状态集
      * @param inStr 输入字符
      */
-    public void link(Set<State> begins, Set<State> ends, FAString inStr){
+    public void link(Set<State> begins, Set<State> ends, FAChar inStr){
         begins.forEach(b -> {
             Set<State> newEnds = new HashSet<>(ends);
             this.transforms.put(b, new Transform(inStr, newEnds));
@@ -146,7 +190,8 @@ public class NFA{
     }
 
     /**
-     * 将当前NFA原地做Kleene闭包（星闭包）
+     * 将当前NFA **原地** 做Kleene闭包（星闭包）
+     * 注意, 会对当前nfa造成影响
      * ```
      *      ________________ε_______________
      *     |                                ↓
@@ -157,13 +202,13 @@ public class NFA{
     public void kleene(){
         Set<State> oldStarts = new HashSet<>(this.startStates);    //保存原有starts 到 oldStarts
         State newStarts = new State();                              //新建一个状态作为start
-        this.startStates = new HashSet<>(){{add(newStarts);}};      //将新状态放入对应集合
+        this.startStates = Set.of(newStarts);      //将新状态放入对应集合
         this.states.add(newStarts);
         linkByEpsilon(this.startStates, oldStarts);                //将新旧状态相连
 
         Set<State> oldAccepts = new HashSet<>(this.acceptStates);
         State newAccepts = new State();
-        this.startStates = new HashSet<>(){{add(newAccepts);}};
+        this.startStates = Set.of(newAccepts);;
         this.states.add(newAccepts);
         linkByEpsilon(oldAccepts, this.acceptStates);
 
@@ -281,7 +326,7 @@ public class NFA{
             this.transforms.put(start, transform);
     }
 
-    void addTransform(State start, FAString inStr, Set<State> states){
+    void addTransform(State start, FAChar inStr, Set<State> states){
         if(this.transforms.containsKey(start))
             this.transforms.get(start).add(inStr, states);
         else
@@ -315,16 +360,16 @@ public class NFA{
      * @param ch 输入字符
      * @return FAChar -> target 映射
      */
-    Transform getTransformFrom(State start, FAString ch){
+    Transform getTransformFrom(State start, FAChar ch){
         return this.transforms.get(start).getTransform(ch);
     }
 
-    Set<State> getNextStates(State start, FAString str){
+    Set<State> getNextStates(State start, FAChar str){
         return this.transforms.get(start).getAllStates(str);
     }
 
-    Set<State> getNextStates(State start, String str){
-        return this.transforms.get(start).getAllStates(new FAString(str));
+    Set<State> getNextStates(State start, Character character){
+        return this.transforms.get(start).getAllStates(new FAChar(character));
     }
 
     Set<State> getNextStates(State start, SpecialChar spChar){

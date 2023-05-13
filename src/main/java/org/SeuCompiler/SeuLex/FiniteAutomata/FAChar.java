@@ -7,29 +7,29 @@ import java.util.Objects;
 
 @Getter
 @EqualsAndHashCode
-public final class FAString {
+final class FAChar {
     private final Boolean isSpecial;
     private final SpecialChar spChar;
-    private final String string;
+    private final Character character;
 
-    public FAString(String str) {
+    public FAChar(Character character) {
         this.isSpecial = false;
         this.spChar = null;
-        this.string = str;
+        this.character = character;
     }
 
-    public FAString(SpecialChar spChar) {
+    public FAChar(SpecialChar spChar) {
         this.isSpecial = true;
         this.spChar = spChar;
-        this.string = null;
+        this.character = null;
     }
 
-    public boolean equalsToStr(String str) {
+    public boolean equalsTo(Character character) {
         if (this.isSpecial) return false;
-        else return Objects.equals(this.string, str);
+        else return Objects.equals(this.character, character);
     }
 
-    public boolean equalsToSpChar(SpecialChar spChar) {
+    public boolean equalsTo(SpecialChar spChar) {
         if (!this.isSpecial) return false;
         else return this.spChar == spChar;
     }

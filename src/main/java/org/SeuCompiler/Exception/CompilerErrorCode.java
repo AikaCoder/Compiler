@@ -6,7 +6,7 @@ public enum CompilerErrorCode implements ErrorCode {
     //compiler 异常00xx
     //未定义异常
     UNSPECIFIED_ERROR("0000", "未定义的Compiler异常"),
-
+    BUILD_NFA_FAILED("0001", "未能成果构建NFA");
     ;
 
     /**

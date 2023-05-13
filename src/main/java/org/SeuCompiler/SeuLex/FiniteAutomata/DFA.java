@@ -12,11 +12,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DFA{
-    protected Set<State> startStates = new HashSet<>();
-    protected Set<State> acceptStates = new HashSet<>();
-    protected Set<State> states = new HashSet<>();
-    protected Set<FAString> alphabet = new HashSet<>();
-    protected Map<State, Map<FAString, State>> transforms = new HashMap<>();
+    private Set<State> startStates = new HashSet<>();
+    private Set<State> acceptStates = new HashSet<>();
+    private Set<State> states = new HashSet<>();
+    private Set<FAChar> alphabet = new HashSet<>();
+    private Map<State, Map<FAChar, State>> transforms = new HashMap<>();
     private final Map<State, Action> acceptActionMap = new HashMap<>();
     
     public DFA copy(){
@@ -33,7 +33,7 @@ public class DFA{
         }
 
         this.transforms.forEach((begin, transform) -> {
-            Map<FAString, State> tempMap = new HashMap<>();
+            Map<FAChar, State> tempMap = new HashMap<>();
             transform.forEach((str, end) -> tempMap.put(str, oldNewMap.get(end)));
             this.transforms.put(oldNewMap.get(begin), tempMap);
         });
@@ -50,11 +50,11 @@ public class DFA{
     public DFA(@NotNull NFA nfa){
         //----------初始化(starts, alphabet)-----------
         this();
-        if(nfa.startStates.size() == 0) return;
+        if(nfa.getStartStates().size() == 0) return;
         //记录dfa的状态集合和新状态的对应关系
         List<Set<State>> oldStatesList = new ArrayList<>();
         List<State> newStateList = new ArrayList<>();
-        Set<State> oldStarts = nfa.epsilonClosure(nfa.startStates);
+        Set<State> oldStarts = nfa.epsilonClosure(nfa.getStartStates());
         State newStart = new State();
         oldStatesList.add(oldStarts);
         newStateList.add(newStart);
@@ -80,11 +80,11 @@ public class DFA{
                     this.transforms.put(newBegin, Map.of(str, newEnd));
                 }
 
-                if(str.equalsToSpChar(SpecialChar.ANY)) addAny.set(true);
+                if(str.equalsTo(SpecialChar.ANY)) addAny.set(true);
             });
             //处理输入字符为ANY的情况
             if(addAny.get()){
-                Map<FAString, State> temp = this.transforms.get(newBegin);
+                Map<FAChar, State> temp = this.transforms.get(newBegin);
                 State targetOfAny = temp.get(SpecialChar.ANY.toFAString());
                 temp.entrySet().removeIf(entry -> entry.getValue().equals(targetOfAny));//删除所有指向target of any的转换
                 if(temp.isEmpty()) temp.put(SpecialChar.ANY.toFAString(), targetOfAny); //如果所有转换都被删去了, 说明所有状态都是接收ANY字符
@@ -99,7 +99,7 @@ public class DFA{
             State s = newStateList.get(i);
             Set<State> refers = oldStatesList.get(i);
             refers.forEach(refer -> {
-                if(nfa.acceptStates.contains(refer)){
+                if(nfa.getAcceptStates().contains(refer)){
                     //如果nfa的起始状态的epsilon闭包包含可接受状态
                     //则将对应的order最小(出现最早, 优先级最高)的动作作为newState对应的动作存放到acceptActionMap中
                     Action action = this.acceptActionMap.get(s); //初始为null, 但几次循环后可能会有值
@@ -107,7 +107,7 @@ public class DFA{
                     if(action == null){
                         this.acceptStates.add(s);
                         this.acceptActionMap.put(s, compare);
-                    }else if(action.getOrder() > compare.getOrder()){
+                    }else if(action.order() > compare.order()){
                         this.acceptActionMap.put(s, compare);
                     }   //else action存在, 且 不用改变action
                 }
@@ -191,7 +191,7 @@ public class DFA{
         });
 
         this.transforms.forEach((begin, transform) -> {
-            Map<FAString, State> tempMap = new HashMap<>();
+            Map<FAChar, State> tempMap = new HashMap<>();
             transform.forEach((str, end) -> tempMap.put(str, oldNewMap.get(end)));
             this.transforms.put(oldNewMap.get(begin), tempMap);
         });
@@ -209,7 +209,7 @@ public class DFA{
             Stack<State> candidates = new Stack<>();
 
             for (; matchedCount < str.length(); matchedCount++){
-                FAString currentChar = new FAString(str.substring(matchedCount, matchedCount + 1));
+                FAChar currentChar = new FAChar(str.charAt(matchedCount));
                 if (!this.alphabet.contains(currentChar)
                         && !this.alphabet.contains(SpecialChar.ANY.toFAString()))//字母表没有该字符, 且不存在ANY转移
                     return false;

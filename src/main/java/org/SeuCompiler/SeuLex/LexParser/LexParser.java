@@ -16,13 +16,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-enum ParserState {
-    InRegexAliasPart,   //正则别名部分 在第一个%%前面
-    InCopyPart,         //直接复制部分, 在%{ %}内
-    InRegexActionPart,  //正则-行为部分 在%% %%内
-    InCCodePart,      //用户子程序部分, 在%%后
-}
-
 public class LexParser {
     private final StringBuilder copyPartBuilder = new StringBuilder();  //直接复制部分, 在%{ %}内
     private final StringBuilder cCodePartBuilder = new StringBuilder(); //末尾c代码, 在第二个%%后
