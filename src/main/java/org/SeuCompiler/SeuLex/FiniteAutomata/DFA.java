@@ -119,7 +119,7 @@ public class DFA{
      * 最小化DFA
      * @return 最小化之后的DFA
      */
-    private DFA minimize(){
+    public DFA minimize(){
         if(this.alphabet.contains(SpecialChar.ANY.toFAString())) return this;   //不考虑any
         //------------初始化-----------
         //根据可接受状态划分成terminal与nonTerminal

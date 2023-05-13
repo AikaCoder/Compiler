@@ -25,7 +25,7 @@ public class LexParser {
     private int actionOrder = 0;    //记录代码行数, 从而实现不同优先级
 
     public String getCopyPart() {
-        return copyPartBuilder.toString();
+        return copyPartBuilder.isEmpty()? "":copyPartBuilder.toString();
     }
     public String getCCodePart() {
         return cCodePartBuilder.toString();

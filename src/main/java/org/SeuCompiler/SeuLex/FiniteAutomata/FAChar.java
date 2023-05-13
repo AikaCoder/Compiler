@@ -7,7 +7,7 @@ import java.util.Objects;
 
 @Getter
 @EqualsAndHashCode
-final class FAChar {
+public final class FAChar {
     private final Boolean isSpecial;
     private final SpecialChar spChar;
     private final Character character;

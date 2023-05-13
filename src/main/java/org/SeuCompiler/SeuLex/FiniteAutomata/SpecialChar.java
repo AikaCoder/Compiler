@@ -3,6 +3,7 @@ package org.SeuCompiler.SeuLex.FiniteAutomata;
 import lombok.Getter;
 
 @Getter
+public
 enum SpecialChar {
     EPSILON("[ε]"),
     ANY("[any]"),     //匹配.lex文件里的`.`, 即表示所有输入
