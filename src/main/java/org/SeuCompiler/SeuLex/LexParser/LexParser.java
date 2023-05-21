@@ -41,7 +41,7 @@ public class LexParser {
             while ((line = br.readLine()) != null)
                 lineList.add(line.trim());
         }catch (IOException e) {
-            throw new SeuCompilerException(LexParserErrorCode.lex_file_IO_exception,e);
+            throw new SeuCompilerException(LexParserErrorCode.lex_file_IO_exception, e.getMessage(), e.getCause());
         }
 
         //将.lex文件分割成不同部分
@@ -75,27 +75,27 @@ public class LexParser {
             switch (line) {
             case "%{" -> newState = ParserState.InCopyPart;
             case "%%" -> newState = ParserState.InRegexActionPart;
-            case "}%" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "前面没有对应的%{");
+            case "%}" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "前面没有对应的%{");
             default -> parserRegexAliasFrom(line);
             }
         }
         case InCopyPart -> {
             switch (line) {
-            case "}%" -> newState = ParserState.InRegexAliasPart;
+            case "%}" -> newState = ParserState.InRegexAliasPart;
             case "%{" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "重复的%{");
-            case "%%" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "%{ }%内不能有%%");
+            case "%%" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "%{ %}内不能有%%");
             default -> this.copyPartBuilder.append(line).append("\n");
             }
         }
         case InRegexActionPart -> {
             if(line.equals("%%")) newState = ParserState.InCCodePart;
-            else if(line.equals("%{") || line.equals("}%"))
-                throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "两个%%中间不能有%{或}%");
+            else if(line.equals("%{") || line.equals("%}"))
+                throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "两个%%中间不能有%{或%}");
             else parserRegexAndActionFrom(line);
         }
         case InCCodePart -> {
-            if(line.equals("%{") || line.equals("}%") || line.equals("%%"))
-                throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "第二个%%后面不能有 {%, }% 或 %%");
+            if(line.equals("%{") || line.equals("%}") || line.equals("%%"))
+                throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "第二个%%后面不能有 {%, %} 或 %%");
             else this.cCodePartBuilder.append(line).append("\n");
         }
         }

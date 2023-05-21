@@ -3,6 +3,10 @@ package org.SeuCompiler.SeuLex.FiniteAutomata;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.SeuCompiler.Exception.CompilerErrorCode;
+import org.SeuCompiler.Exception.SeuCompilerException;
+import org.SeuCompiler.SeuLex.LexNode.LexChar;
+import org.SeuCompiler.SeuLex.LexNode.SpecialChar;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -15,43 +19,19 @@ public class DFA{
     private Set<State> startStates = new HashSet<>();
     private Set<State> acceptStates = new HashSet<>();
     private Set<State> states = new HashSet<>();
-    private Set<FAChar> alphabet = new HashSet<>();
-    private Map<State, Map<FAChar, State>> transforms = new HashMap<>();
+    private Set<LexChar> alphabet = new HashSet<>();
+    private Map<State, Map<LexChar, State>> transforms = new HashMap<>();
     private final Map<State, Action> acceptActionMap = new HashMap<>();
-    
-    public DFA copy(){
-        DFA dfa = new DFA();
-        dfa.alphabet.addAll(this.alphabet);
-
-        Map<State, State> oldNewMap = new HashMap<>();
-        for (State s : this.states) {
-            State newState = new State();
-            if (this.startStates.contains(s)) dfa.startStates.add(newState);
-            if (this.acceptStates.contains(s)) dfa.acceptStates.add(newState);
-            dfa.states.add(newState);
-            oldNewMap.put(s, newState);
-        }
-
-        this.transforms.forEach((begin, transform) -> {
-            Map<FAChar, State> tempMap = new HashMap<>();
-            transform.forEach((str, end) -> tempMap.put(str, oldNewMap.get(end)));
-            this.transforms.put(oldNewMap.get(begin), tempMap);
-        });
-        this.acceptActionMap.forEach((state, action) -> {
-            dfa.acceptActionMap.put(oldNewMap.get(state), action);
-        });
-        return dfa;
-    }
     
     /**
      * 使用NFA构建DFA
      * @param nfa 用来初始化的NFA
      */
-    public DFA(@NotNull NFA nfa){
+    public DFA(@NotNull NFA nfa) throws SeuCompilerException {
         //----------初始化(starts, alphabet)-----------
         this();
         if(nfa.getStartStates().size() == 0) return;
-        //记录dfa的状态集合和新状态的对应关系
+        //用两个List记录dfa的状态集合和新状态的对应关系
         List<Set<State>> oldStatesList = new ArrayList<>();
         List<State> newStateList = new ArrayList<>();
         Set<State> oldStarts = nfa.epsilonClosure(nfa.getStartStates());
@@ -69,26 +49,28 @@ public class DFA{
             Set<State> oldBegins = oldStatesList.get(i);
             State newBegin = newStateList.get(i);
             Transform expand = nfa.expandTransformWithEpsilon(oldBegins);
-            expand.getMap().forEach((str, states) -> {
-                if(states.isEmpty()) return;
-                if(oldStatesList.contains(states)){
-                    this.transforms.put(newBegin, Map.of(str, newStateList.get(oldStatesList.indexOf(states))));
-                }else{
+            for (Map.Entry<LexChar, Set<State>> e : expand.getMap().entrySet()) {
+                LexChar str = e.getKey();
+                Set<State> oldEnds = e.getValue();
+                if (oldEnds.isEmpty()) continue;
+                if (oldStatesList.contains(oldEnds)) {
+                    addTransform(newBegin, str, newStateList.get(oldStatesList.indexOf(oldEnds)));
+                } else {
                     State newEnd = new State();
-                    oldStatesList.add(states);
+                    oldStatesList.add(oldEnds);
                     newStateList.add(newEnd);
-                    this.transforms.put(newBegin, Map.of(str, newEnd));
+                    addTransform(newBegin, str, newEnd);
                 }
 
-                if(str.equalsTo(SpecialChar.ANY)) addAny.set(true);
-            });
+                if (str.equalsTo(SpecialChar.ANY)) addAny.set(true);
+            }
             //处理输入字符为ANY的情况
             if(addAny.get()){
-                Map<FAChar, State> temp = this.transforms.get(newBegin);
-                State targetOfAny = temp.get(SpecialChar.ANY.toFAString());
+                Map<LexChar, State> temp = this.transforms.get(newBegin);
+                State targetOfAny = temp.get(SpecialChar.ANY.toFAChar());
                 temp.entrySet().removeIf(entry -> entry.getValue().equals(targetOfAny));//删除所有指向target of any的转换
-                if(temp.isEmpty()) temp.put(SpecialChar.ANY.toFAString(), targetOfAny); //如果所有转换都被删去了, 说明所有状态都是接收ANY字符
-                else temp.put(SpecialChar.OTHER.toFAString(), targetOfAny); //Other表示除有效字符外的字符
+                if(temp.isEmpty()) temp.put(SpecialChar.ANY.toFAChar(), targetOfAny); //如果所有转换都被删去了, 说明所有状态都是接收ANY字符
+                else temp.put(SpecialChar.OTHER.toFAChar(), targetOfAny); //Other表示除有效字符外的字符
             }
         }
 
@@ -119,8 +101,8 @@ public class DFA{
      * 最小化DFA
      * @return 最小化之后的DFA
      */
-    public DFA minimize(){
-        if(this.alphabet.contains(SpecialChar.ANY.toFAString())) return this;   //不考虑any
+    public DFA minimize() throws SeuCompilerException {
+        if(this.alphabet.contains(SpecialChar.ANY.toFAChar())) return this;   //不考虑any
         //------------初始化-----------
         //根据可接受状态划分成terminal与nonTerminal
         Set<State> terminals = new HashSet<>(this.acceptStates);
@@ -132,7 +114,7 @@ public class DFA{
         List<Set<State>> divisions = new ArrayList<>();  //用于存放不同状态划分的散列
         //因为不同的accept state可能对应不同的action/regex,
         //所以这里不能像一般情况一样将所有的terminal合起来作为一种情况, 而要分开来进行划分
-        terminals.forEach(ter -> divisions.add(Set.of(ter)));
+        terminals.forEach(ter -> divisions.add( new HashSet<>(Set.of(ter))));
         //nonTerminal 初始化时nonTerminal本身作为一种划分放入divisions中
         divisions.add(nonTerminals);
 
@@ -191,14 +173,25 @@ public class DFA{
         });
 
         this.transforms.forEach((begin, transform) -> {
-            Map<FAChar, State> tempMap = new HashMap<>();
+            Map<LexChar, State> tempMap = new HashMap<>();
             transform.forEach((str, end) -> tempMap.put(str, oldNewMap.get(end)));
-            this.transforms.put(oldNewMap.get(begin), tempMap);
+            dfa.transforms.put(oldNewMap.get(begin), tempMap);
         });
 
         this.acceptActionMap.forEach((state, action) -> {
             dfa.acceptActionMap.put(oldNewMap.get(state), action);
         });
+
+        if(dfa.startStates.size() != 1)
+            throw new SeuCompilerException(CompilerErrorCode.TOO_MANY_START_STATES);
+
+        for (Map.Entry<State, Map<LexChar, State>> entry : dfa.transforms.entrySet()) {
+            Map<LexChar, State> value = entry.getValue();
+            if (value.containsKey(SpecialChar.EPSILON.toFAChar()))
+                throw new SeuCompilerException(CompilerErrorCode.DFA_CONTAINS_EPSILON);
+        }
+
+
         return dfa;
     }
 
@@ -209,9 +202,9 @@ public class DFA{
             Stack<State> candidates = new Stack<>();
 
             for (; matchedCount < str.length(); matchedCount++){
-                FAChar currentChar = new FAChar(str.charAt(matchedCount));
+                LexChar currentChar = new LexChar(str.charAt(matchedCount));
                 if (!this.alphabet.contains(currentChar)
-                        && !this.alphabet.contains(SpecialChar.ANY.toFAString()))//字母表没有该字符, 且不存在ANY转移
+                        && !this.alphabet.contains(SpecialChar.ANY.toFAChar()))//字母表没有该字符, 且不存在ANY转移
                     return false;
                 State newState = this.transforms.get(current).get(currentChar);
                 matchedCount++;
@@ -228,4 +221,44 @@ public class DFA{
         return false;
     }
 
+    public void print(){
+        System.out.println("\n========= print DFA =========");
+        List<State> allStates = new ArrayList<>(this.states);
+        List<State> starts = new ArrayList<>(this.startStates);
+        int i = 0;
+        for(State s: starts){
+            Collections.swap(allStates, i, allStates.indexOf(s));
+            i++;
+        }
+        System.out.println("start states:");
+        for(State s : allStates){
+            if(this.startStates.contains(s))
+                System.out.println("\t"+allStates.indexOf(s));
+        }
+        System.out.print("\naccept states & actions:\n");
+        this.acceptActionMap.forEach(((state, action) -> {
+            System.out.println("\t"+allStates.indexOf(state)+"\t -> "+action.code());
+        }));
+        System.out.print("\ntransform table\n");
+        System.out.printf("\t%-8s%-8s%-8s\n", "start", "char", "end");
+        this.transforms.forEach((start, transforms) ->{
+            transforms.forEach(((faChar, end) -> {
+                System.out.printf("\t%-8d%-8s%-8d\n", allStates.indexOf(start), faChar.getString(), allStates.indexOf(end));
+            }));
+        });
+    }
+
+    private void addTransform(State begin, LexChar lexChar, State end) throws SeuCompilerException {
+        if( ! this.transforms.containsKey(begin)){
+            this.transforms.put(begin,new HashMap<>( new HashMap<>(Map.of(lexChar, end))));
+            return;
+        }
+        Map<LexChar, State> transform = this.transforms.get(begin);
+        if(transform.containsKey(lexChar)){
+            if( ! transform.get(lexChar).equals(end))
+                throw new SeuCompilerException(CompilerErrorCode.MULTIPLE_TRANSFORM_FRO_ONE_INPUT);
+            return;
+        }
+        transform.put(lexChar, end);
+    }
 }

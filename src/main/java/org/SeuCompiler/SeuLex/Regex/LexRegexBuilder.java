@@ -2,6 +2,9 @@ package org.SeuCompiler.SeuLex.Regex;
 
 import org.SeuCompiler.Exception.RegexErrorCode;
 import org.SeuCompiler.Exception.SeuCompilerException;
+import org.SeuCompiler.SeuLex.LexNode.LexNode;
+import org.SeuCompiler.SeuLex.LexNode.LexOperator;
+import org.SeuCompiler.SeuLex.LexNode.SpecialChar;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -43,14 +46,12 @@ public class LexRegexBuilder {
         return regexWithoutAliasBuilder.toString();
     }
 
-    public void reset(){
-        this.rawRegexBuilder.setLength(0);
-        this.regexWithoutAliasBuilder.setLength(0);
-        this.stateNow = State.Normal;
-    }
-
     public LexRegex build() throws SeuCompilerException {
-        return new LexRegex(this);
+        System.out.println("building --- \t" +this.getRawRegex());
+        System.out.println("no alias --- \t" + this.getRegexWithoutAlias());
+        LexRegex newLex = new LexRegex(this);
+        System.out.println("postfix: --- \t" + newLex.getPostfixStr() +'\n');
+        return newLex;
     }
 
     /**
@@ -62,13 +63,14 @@ public class LexRegexBuilder {
         if(afterSlash) {
             afterSlash = false;
             rawRegexBuilder.append(ch);
+            regexWithoutAliasBuilder.append(ch);
             return this.stateNow;
         }
 
         switch (this.stateNow){
             case Normal -> {
                 switch (ch){
-                    case ' ' -> {
+                    case ' ','\t' -> {
                         return null;
                     }
                     case '{' ->{
@@ -76,6 +78,7 @@ public class LexRegexBuilder {
                         rawRegexBuilder.append(ch);
                         return this.stateNow;
                     }
+                    //在中括号`[]`, 引号`""`内, 和反斜杠`\`后 的花括号`{}`可能不表示别名替换
                     case '[' ->this.stateNow  = State.InSquare;
                     case '\"' ->this.stateNow = State.InQuote;
                     case '\\' ->afterSlash = true;
@@ -91,7 +94,16 @@ public class LexRegexBuilder {
                     }
                     String replaceRegex = aliasRegexMap.get(alias);
                     if(replaceRegex == null)
-                        throw new SeuCompilerException(RegexErrorCode.not_find_alias, "所找别名为 "+alias);
+                        throw new SeuCompilerException(RegexErrorCode.not_find_alias, "没有对应正则的别名为 "+alias);
+                    if(replaceRegex.contains("{")||replaceRegex.contains("}")){
+                        //别名替代的内容里仍然包含`{, }`, 需要迭代替换
+                        LexRegexBuilder regexBuilder = new LexRegexBuilder(this.aliasRegexMap);
+                        for(int i = 0;i<replaceRegex.length();i++) {
+                            if(regexBuilder.swiftAndBuildRaw(replaceRegex.charAt(i)) == null)
+                                break;
+                        }
+                        replaceRegex = regexBuilder.getRegexWithoutAlias();
+                    }
                     regexWithoutAliasBuilder.append(replaceRegex);
 
                     this.stateNow = State.Normal;
@@ -104,12 +116,12 @@ public class LexRegexBuilder {
             case InSquare -> {
                 if(ch == '\\') afterSlash = true;
                 else if (ch == ']') this.stateNow = State.Normal;
-                this.aliasBuilder.append(ch);
+                this.regexWithoutAliasBuilder.append(ch);
             }
             case InQuote -> {
                 if(ch == '\\') afterSlash = true;
                 else if(ch == '\"') this.stateNow = State.Normal;
-                this.aliasBuilder.append(ch);
+                this.regexWithoutAliasBuilder.append(ch);
             }
         }
 
@@ -122,10 +134,10 @@ public class LexRegexBuilder {
      * @param str 原始字符
      * @return Regex序列
      */
-    ArrayList<LexCharacterNode> rawStrToList(@NotNull String str) throws SeuCompilerException {
+    ArrayList<LexNode> rawStrToList(@NotNull String str) throws SeuCompilerException {
         StringBuffer strBuffer = new StringBuffer();
         State stateNow = State.Normal;
-        ArrayList<LexCharacterNode> list = new ArrayList<>();
+        ArrayList<LexNode> list = new ArrayList<>();
 
         for(int i = 0;i<str.length();i++){
             char ch = str.charAt(i);
@@ -138,16 +150,18 @@ public class LexRegexBuilder {
                         case ']' -> throw new SeuCompilerException(RegexErrorCode.no_corresponding_former, "Regex: " + str);
                         case '^', '-', '$', '>' -> throw new SeuCompilerException(RegexErrorCode.unexpected_character, "字符: "+ch+ ", Regex: "+str);
                         case '%', '<', '{' -> throw new SeuCompilerException(RegexErrorCode.no_support_function);
+                        case '.' -> list.add(new LexNode(SpecialChar.ANY));
                         default -> {
-                            if(LexOperator.isOperator(ch)) list.add(new LexCharacterNode(LexOperator.getByChar(ch)));
-                            else list.add(new LexCharacterNode(ch));
+                            if(LexOperator.isOperator(ch)) list.add(new LexNode(LexOperator.getByChar(ch)));
+                            else list.add(new LexNode(ch));
                         }
                     }
                 }
                 case AfterSlash -> {
-                    if(ch == 't') list.add(new LexCharacterNode('\t'));
-                    else if(ch == 'n') list.add(new LexCharacterNode('\n'));
-                    else list.add(new LexCharacterNode(ch));
+                    if(ch == 't') list.add(new LexNode('\t'));
+                    else if(ch == 'n') list.add(new LexNode('\n'));
+                    else if(ch == 'r') list.add(new LexNode('\r'));
+                    else list.add(new LexNode(ch));
                     stateNow = State.Normal;
                 }
                 case InSquare -> {
@@ -161,7 +175,7 @@ public class LexRegexBuilder {
                 }
                 case InQuote -> {
                     if(ch =='"') stateNow = State.Normal;
-                    else list.add(new LexCharacterNode(ch));
+                    else list.add(new LexNode(ch));
                 }}
         }
         if(stateNow != State.Normal)
@@ -177,7 +191,7 @@ public class LexRegexBuilder {
      * @param buffer 字符串缓存
      * @return Regex字符序列
      */
-    ArrayList<LexCharacterNode> expand(@NotNull StringBuffer buffer) throws SeuCompilerException {
+    ArrayList<LexNode> expand(@NotNull StringBuffer buffer) throws SeuCompilerException {
         String insideStr = buffer.toString();
         Set<Character> expandResSet = new HashSet<>();
         boolean hasNeg = false;
@@ -220,6 +234,7 @@ public class LexRegexBuilder {
             if(transferFlag) {
                 if(ch == 'n') ch = '\n';
                 else if(ch == 't') ch = '\t';
+                else if(ch == 'r') ch = '\r';
             }
 
             expandResSet.add(ch);
@@ -238,18 +253,19 @@ public class LexRegexBuilder {
             }
             if(!expandResSet.contains('\n')) complementSet.add('\n');
             if(!expandResSet.contains('\t')) complementSet.add('\t');
+            if(!expandResSet.contains('\r')) complementSet.add('\r');
             expandResSet = complementSet;
         }
         List<Character> expandList = expandResSet.stream().sorted().toList();
-        ArrayList<LexCharacterNode> list = new ArrayList<>();
-        list.add(new LexCharacterNode(LexOperator.LEFT_BRACKET));
+        ArrayList<LexNode> list = new ArrayList<>();
+        list.add(new LexNode(LexOperator.LEFT_BRACKET));
         Iterator<Character> iterator = expandList.iterator();
-        list.add(new LexCharacterNode(iterator.next()));
+        list.add(new LexNode(iterator.next()));
         while(iterator.hasNext()){
-            list.add(new LexCharacterNode(LexOperator.OR));
-            list.add(new LexCharacterNode(iterator.next()));
+            list.add(new LexNode(LexOperator.OR));
+            list.add(new LexNode(iterator.next()));
         }
-        list.add(new LexCharacterNode(LexOperator.RIGHT_BRACKET));
+        list.add(new LexNode(LexOperator.RIGHT_BRACKET));
         return list;
     }
 
@@ -260,12 +276,12 @@ public class LexRegexBuilder {
      * @param list Lex字符节点序列
      * @return 加点后的字符序列
      */
-    ArrayList<LexCharacterNode> addDots(ArrayList<LexCharacterNode> list){
-        ArrayList<LexCharacterNode> resList = new ArrayList<>(list);
-        ListIterator<LexCharacterNode> iterator = resList.listIterator();
+    ArrayList<LexNode> addDots(ArrayList<LexNode> list){
+        ArrayList<LexNode> resList = new ArrayList<>(list);
+        ListIterator<LexNode> iterator = resList.listIterator();
         while (iterator.hasNext()){
-            LexCharacterNode node1 = iterator.next();
-            LexCharacterNode node2;
+            LexNode node1 = iterator.next();
+            LexNode node2;
             if(iterator.hasNext())
                 node2 = iterator.next();
             else
@@ -279,7 +295,7 @@ public class LexRegexBuilder {
                             || node2.getOperator() == LexOperator.STAR
                             || node2.getOperator() == LexOperator.QUESTION
                             || node2.getOperator() == LexOperator.ADD
-                    )) iterator.add(new LexCharacterNode(LexOperator.DOT));
+                    )) iterator.add(new LexNode(LexOperator.DOT));
         }
         return resList;
     }
@@ -289,11 +305,11 @@ public class LexRegexBuilder {
      * @param list Lex符号结点序列
      * @return 后缀形式Lex符号结点序列
      */
-    ArrayList<LexCharacterNode> turnToSuffix(@NotNull ArrayList<LexCharacterNode> list) throws SeuCompilerException {
-        Stack<LexCharacterNode> stack = new Stack<>();
-        ArrayList<LexCharacterNode> resList = new ArrayList<>();
+    ArrayList<LexNode> turnToSuffix(@NotNull ArrayList<LexNode> list) throws SeuCompilerException {
+        Stack<LexNode> stack = new Stack<>();
+        ArrayList<LexNode> resList = new ArrayList<>();
 
-        for (LexCharacterNode node : list) {
+        for (LexNode node : list) {
             if (!node.isOperator()) {
                 resList.add(node);
                 continue;

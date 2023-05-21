@@ -1,9 +1,8 @@
-package org.SeuCompiler.SeuLex.Regex;
+package org.SeuCompiler.SeuLex.LexNode;
 
-import lombok.EqualsAndHashCode;
+import org.jetbrains.annotations.Nullable;
 
 public enum LexOperator {
-    UNSPECIFIED(null, null, null),
     ADD('+', 3, true),
     STAR('*', 3, true),
     QUESTION('?', 3, true),
@@ -11,7 +10,6 @@ public enum LexOperator {
     OR('|', 1, false),
     LEFT_BRACKET('(',0, false),
     RIGHT_BRACKET(')',0,false),
-    ANY('.', null, null)
     ;
     private final Character character;
     private final Integer priority;
@@ -30,17 +28,26 @@ public enum LexOperator {
         return this.isUnary;
     }
 
-    public static LexOperator getByChar(char ch){
+    public static @Nullable LexOperator getByChar(char ch){
         for(LexOperator value : LexOperator.values()){
             if(value.getCharacter() == ch)
                 return value;
         }
-        return UNSPECIFIED;
+        return null;
+    }
+
+    public static boolean isOperator(String ch){
+        for(LexOperator value : LexOperator.values()){
+            if(value.getCharacter().toString().equals(ch))
+                return true;
+        }
+        return false;
     }
 
     public static boolean isOperator(Character ch){
         for(LexOperator value : LexOperator.values()){
-            if(value.getCharacter() == ch)
+            if(value.getCharacter() == null) continue;
+            if(value.getCharacter().equals(ch))
                 return true;
         }
         return false;

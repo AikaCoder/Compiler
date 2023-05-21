@@ -1,4 +1,4 @@
-package org.SeuCompiler.SeuLex.FiniteAutomata;
+package org.SeuCompiler.SeuLex.LexNode;
 
 import lombok.Getter;
 
@@ -16,7 +16,7 @@ enum SpecialChar {
         this.str = str;
     }
 
-    FAChar toFAString(){
-        return new FAChar(this);
+    public LexChar toFAChar(){
+        return new LexChar(this);
     }
 }

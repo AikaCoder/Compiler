@@ -7,7 +7,7 @@ package org.SeuCompiler.Exception;
 public class SeuCompilerException extends Exception {
 
     /** 错误码 */
-    private ErrorCode errorCode;
+    private final ErrorCode errorCode;
     /** 其他信息, 帮助解决 bug */
     private String otherInfo = null;
     /** 错误所在行号 **/
@@ -88,7 +88,7 @@ public class SeuCompilerException extends Exception {
      */
     public SeuCompilerException(final ErrorCode errorCode, final String description, final  Throwable t){
         super(description, t);
-        this.errorCode = CompilerErrorCode.UNSPECIFIED_ERROR;
+        this.errorCode = errorCode;
     }
 
     public String getCode() {
@@ -96,15 +96,11 @@ public class SeuCompilerException extends Exception {
     }
 
     public String getDescription(){
-        return errorCode.getDescription();
+        return errorCode.getDescription()+"\n"+super.getMessage();
     }
 
     public String getOtherInfo(){
         return this.otherInfo;
-    }
-
-    public void addOtherInfo(final String addInfo){
-        this.otherInfo = this.otherInfo+ "\t" + addInfo;
     }
 
     public void setLineNum(Integer lineNum) {

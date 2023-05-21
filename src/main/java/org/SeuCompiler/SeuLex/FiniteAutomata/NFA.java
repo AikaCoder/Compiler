@@ -5,13 +5,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.SeuCompiler.Exception.CompilerErrorCode;
 import org.SeuCompiler.Exception.SeuCompilerException;
+import org.SeuCompiler.SeuLex.LexNode.LexChar;
+import org.SeuCompiler.SeuLex.LexNode.SpecialChar;
 import org.SeuCompiler.SeuLex.LexParser.LexParser;
-import org.SeuCompiler.SeuLex.Regex.LexCharacterNode;
-import org.SeuCompiler.SeuLex.Regex.LexOperator;
+import org.SeuCompiler.SeuLex.LexNode.LexNode;
+import org.SeuCompiler.SeuLex.LexNode.LexOperator;
 import org.SeuCompiler.SeuLex.Regex.LexRegex;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Data
 @NoArgsConstructor
@@ -20,87 +21,139 @@ public class NFA{
     private Set<State> startStates = new HashSet<>();
     private Set<State> acceptStates = new HashSet<>();
     private Set<State> states = new HashSet<>();   //使用ArrayList主要是为了方便拷贝时查询
-    private Set<FAChar> alphabet = new HashSet<>();
+    private Set<LexChar> alphabet = new HashSet<>();
     private Map<State, Transform> transforms = new HashMap<>();
-    private final Map<State, Action> acceptActionMap = new HashMap<>();
+    private Map<State, Action> acceptActionMap = new HashMap<>();
 
-    public static NFA buildFromRegex(LexRegex regex, Action action) throws SeuCompilerException {
+    public NFA(LexRegex regex, Action action) throws SeuCompilerException {
+        this();
+        int step = 0;
         Stack<NFA> stack = new Stack<>();
-        for(LexCharacterNode lexChar : regex.getPostfixExpression()){
-            if (lexChar.equals(LexOperator.OR)) stack.push(parallel(stack.pop(), stack.pop()));        // |
-            else if (lexChar.equals(LexOperator.DOT)) stack.push(serial(stack.pop(), stack.pop()));   // dot
-            else if (lexChar.equals(LexOperator.STAR)) stack.peek().kleene();     //*
-            else if (lexChar.equals(LexOperator.ADD)){  //A+ -> AA*
-                NFA nfa = stack.pop();
-                NFA copy = nfa.copy();
-                copy.kleene();
-                stack.push(serial(nfa, copy));
-            }else if(lexChar.equals(LexOperator.QUESTION)){ //A?
-                NFA nfa = stack.pop();
-                nfa.linkByEpsilon(nfa.startStates, nfa.acceptStates);
-                stack.push(nfa);
-            }else if(lexChar.equals(LexOperator.ANY)){  //`.`表示匹配所有字符
-                NFA.atom(SpecialChar.ANY.toFAString());
-            }else{
-                NFA.atom(new FAChar(lexChar.getCharacter()));
+        for(LexNode lexNode : regex.getPostfixExpression()){
+            step++;
+            if(!lexNode.isOperator()){
+                stack.push(new NFA(lexNode.getLexChar()));
+            }else {
+                LexOperator operator = lexNode.getOperator();
+                switch (operator) {
+                    case OR -> stack.push(parallel(stack.pop(), stack.pop()));  // |
+                    case DOT -> {   //dot
+                        NFA nfa2 = stack.pop();
+                        NFA nfa1 = stack.pop();
+                        stack.push(serial(nfa1, nfa2));
+                    }
+                    case STAR -> stack.peek().kleene();
+                    case ADD -> {   //A+ -> AA*
+                        NFA nfa = stack.pop();
+                        NFA copy = new NFA(nfa);
+                        copy.kleene();
+                        stack.push(serial(nfa, copy));
+                    }
+                    case QUESTION -> { //A? -> A|\ε
+                        NFA nfa = stack.pop();
+                        nfa.linkByEpsilon(nfa.startStates, nfa.acceptStates);
+                        stack.push(nfa);
+                    }
+                    default -> throw new SeuCompilerException(
+                            CompilerErrorCode.UNEXPECTED_OPERATOR,
+                            "操作符为: " + operator.getCharacter()
+                    );
+                }
             }
+            //todo
+//            if(step < 10) {
+//                System.out.printf("\n--------step %d--------\n", step);
+//                stack.peek().print();
+//            }
+//            else System.out.printf("---step %d: success.\n", step);
         }
 
         if(stack.size()!=1)
             throw new SeuCompilerException(CompilerErrorCode.BUILD_NFA_FAILED);
         NFA res = stack.pop();
+
+        this.startStates = res.startStates;
+        this.acceptStates = res.acceptStates;
+        this.states = res.states;
+        this.transforms = res.transforms;
+        this.alphabet = res.alphabet;
+
         if(action!=null)
-            res.acceptStates.forEach(s -> res.acceptActionMap.put(s, action));
-        return res;
+            this.acceptStates.forEach(s -> this.acceptActionMap.put(s, action));
     }
 
-    public static NFA buildFromParser(LexParser parser) throws SeuCompilerException {
+    public NFA(LexParser parser) throws SeuCompilerException {
+        this();
         List<NFA> nfas = new ArrayList<>();
+        int count = 1;
         for(LexRegex regex : parser.getRegexActionMap().keySet()){
-            nfas.add(buildFromRegex(regex, parser.getRegexActionMap().get(regex)));
+            System.out.printf("========== build NFA_%d ==========\n", count++);
+            nfas.add(new NFA(regex, parser.getRegexActionMap().get(regex)));
         }
-        return parallelAll(nfas);
-    }
-
-    public NFA copy() {
-        NFA nfa = new NFA();
-        nfa.alphabet.addAll(this.alphabet);
-
-        Map<State, State> oldNewMap = new HashMap<>();
-        for (State s : this.states) {
-            State newState = new State();
-            if (this.startStates.contains(s)) nfa.startStates.add(newState);
-            if (this.acceptStates.contains(s)) nfa.acceptStates.add(newState);
-            nfa.states.add(newState);
-            oldNewMap.put(s, newState);
+        State start = new State();
+        this.startStates.add(start);
+        this.states.add(start);
+        for (NFA nfa : nfas) {
+            this.acceptStates.addAll(nfa.acceptStates);
+            this.states.addAll(nfa.states);
+            this.alphabet.addAll(nfa.alphabet);
+            this.addTransformsFrom(nfa);
+            this.linkByEpsilon(this.startStates, nfa.startStates);
+            this.acceptActionMap.putAll(nfa.acceptActionMap);
         }
-
-        this.transforms.forEach((begin, transform) -> {
-            nfa.transforms.put(oldNewMap.get(begin), transform.copyByMap(oldNewMap));
-        });
-        this.acceptActionMap.forEach((state, action) -> {
-            nfa.acceptActionMap.put(oldNewMap.get(state), action);
-        });
-        return nfa;
+        System.out.print("========== build complete ==========\n");
+        //print();
+        //todo
     }
 
     /**
-     * 构造一个形如`->0 --a--> [1]`的原子NFA（两个状态，之间用初始字母连接）
-     * @param init 初始字符串
-     * @return 原子NFA
+     * 拷贝构造函数, 会生成新状态, 但底层字符不会被拷贝
+     * @param other 原本NFA
      */
-    public static NFA atom(FAChar init){
-        NFA nfa = new NFA();
+    public NFA(NFA other) {
+        this();
+        copyFrom(other);
+    }
+
+    /**
+     * 由初始字符构造一个形如`0 --a--> 0`的原子NFA
+     * @param init 初始字符串
+     */
+    public NFA(LexChar init){
+        this();
         State start = new State();
         State end = new State();
-        nfa.startStates.add(start);
-        nfa.acceptStates.add(end);
-        nfa.states.addAll(nfa.startStates);
-        nfa.states.addAll(nfa.acceptStates);
-        nfa.alphabet.add(init);
-        nfa.transforms.put(start, new Transform(init, Set.of(end)));
-        return nfa;
+        this.startStates.add(start);
+        this.acceptStates.add(end);
+        this.states.addAll(Set.of(start,end));
+        this.alphabet.add(init);
+        this.transforms.put(start, new Transform(init, Set.of(end)));
     }
+
+    /**
+     * 拷贝实现函数, 会生成新状态, 但底层字符不会被拷贝
+     * @param other 原本NFA
+     */
+    private void copyFrom(NFA other){
+        this.alphabet.addAll(other.alphabet);
+
+        Map<State, State> oldNewMap = new HashMap<>();
+        for (State s : other.states) {
+            State newState = new State();
+            if (other.startStates.contains(s)) this.startStates.add(newState);
+            if (other.acceptStates.contains(s)) this.acceptStates.add(newState);
+            this.states.add(newState);
+            oldNewMap.put(s, newState);
+        }
+
+        other.transforms.forEach((begin, transform) ->
+                this.transforms.put(oldNewMap.get(begin), transform.copyByMap(oldNewMap))
+        );
+        other.acceptActionMap.forEach((state, action) ->
+                this.acceptActionMap.put(oldNewMap.get(state), action)
+        );
+    }
+
 
     /**
      * 获得epsilon闭包，即从某状态集合只通过epsilon边所能到达的所有状态（包括自身）
@@ -109,58 +162,27 @@ public class NFA{
      */
     public Set<State> epsilonClosure(Set<State> states){
         Set<State> res =  new HashSet<>(states);
-        res.forEach((s) ->{
-            Set<State> addStates = getNextStates(s, SpecialChar.EPSILON)
-                    .stream()
-                    .filter(state -> !res.contains(state))
-                    .collect(Collectors.toSet());
+        states.forEach((s) ->{
+            Set<State> addStates = getNextStatesByEpsilon(s);
+            if(!addStates.isEmpty())
+                addStates.addAll(epsilonClosure(addStates));
             res.addAll(addStates);
         });
         return res;
     }
 
-    /**
-     * 返回从某状态收到一个字母并消耗它后，能到达的所有其他状态（考虑了利用epsilon边进行预先和预后扩展）
-     * @param start 起始状态
-     * @param inStr 输入字符
-     * @return 扩展状态集
-     */
-    public Set<State> expandWithEpsilonClosure(State start, FAChar inStr){
-        Set<State> preExpand = epsilonClosure(Set.of(start));
-        Set<State> res = new HashSet<>();
-        preExpand.forEach(s -> {
-            res.addAll(getNextStates(s,inStr));
-            if(!inStr.equalsTo('\n'))
-                res.addAll(getNextStates(s, SpecialChar.ANY));
-        });
-        return new HashSet<>(epsilonClosure(res));
-    }
 
     /**
-     * 返回从某状态集合通过一个字母能到达的所有状态（没有考虑epsilon边扩展）
-     * @param start 起始状态
-     * @param inStr 输入字符
-     * @return 扩展状态集
-     */
-    public Set<State> expand(Set<State> start, FAChar inStr){
-        Set<State> res = new HashSet<>();
-        start.forEach(s -> {
-            res.addAll(getNextStates(s,inStr));
-            if(!inStr.equalsTo('\n'))
-                res.addAll(getNextStates(s, SpecialChar.ANY));
-        });
-        return new HashSet<>(epsilonClosure(res));
-    }
-
-    /**
-     * 从每个状态出发, 不同字符的映射关系, 考虑了epsilon后扩展
+     * 从每个状态出发, 不同非空字符的映射关系, 考虑了epsilon后扩展
      * @param start 起始状态
      * @return 字符 -> 经过Epsilon扩展的状态集合
      */
     public Transform expandTransformWithEpsilon(Set<State> start){
         Transform res = new Transform();
         for(State s : start){
+            if(!this.transforms.containsKey(s)) continue;
             this.transforms.get(s).getMap().forEach((str, states) -> {
+                if(str.equalsTo(SpecialChar.EPSILON)) return;
                 res.add(str, epsilonClosure(states));
             });
         }
@@ -173,11 +195,8 @@ public class NFA{
      * @param ends 结束状态集
      * @param inStr 输入字符
      */
-    public void link(Set<State> begins, Set<State> ends, FAChar inStr){
-        begins.forEach(b -> {
-            Set<State> newEnds = new HashSet<>(ends);
-            this.transforms.put(b, new Transform(inStr, newEnds));
-        });
+    public void link(Set<State> begins, Set<State> ends, LexChar inStr){
+        begins.forEach(b ->  addTransform(b, new Transform(inStr, new HashSet<>(ends))));
     }
 
     /**
@@ -186,7 +205,7 @@ public class NFA{
      * @param ends  结束状态集
      */
     public void linkByEpsilon(Set<State> begins, Set<State> ends){
-        this.link(begins, ends, SpecialChar.EPSILON.toFAString());
+        this.link(begins, ends, SpecialChar.EPSILON.toFAChar());
     }
 
     /**
@@ -201,48 +220,20 @@ public class NFA{
      */
     public void kleene(){
         Set<State> oldStarts = new HashSet<>(this.startStates);    //保存原有starts 到 oldStarts
-        State newStarts = new State();                              //新建一个状态作为start
-        this.startStates = Set.of(newStarts);      //将新状态放入对应集合
-        this.states.add(newStarts);
+        State newStart = new State();                              //新建一个状态作为start
+        this.startStates = new HashSet<>(Set.of(newStart));      //将新状态放入对应集合
+        this.states.add(newStart);
         linkByEpsilon(this.startStates, oldStarts);                //将新旧状态相连
 
         Set<State> oldAccepts = new HashSet<>(this.acceptStates);
-        State newAccepts = new State();
-        this.startStates = Set.of(newAccepts);;
-        this.states.add(newAccepts);
+        State newAccept = new State();
+        this.acceptStates = new HashSet<>(Set.of(newAccept));
+        this.states.add(newAccept);
         linkByEpsilon(oldAccepts, this.acceptStates);
 
         linkByEpsilon(this.startStates, this.acceptStates);
         linkByEpsilon(oldAccepts, oldStarts);
     }
-
-    /**
-     * 检测当前状态是否是可接受状态(考虑了epsilon扩展)
-     * @param current 目标当前状态
-     * @return 如果为可接受状态, 返回真
-     */
-    public boolean isAcceptable(State current){
-        if(this.acceptStates.contains(current)) return true;
-
-        Stack<State> stack = new Stack<>();
-        stack.push(current);
-        while (!stack.empty()){
-            for(State s : getNextStates(stack.pop(), SpecialChar.EPSILON)){
-                if(this.acceptStates.contains(s)) return true;
-                if(!stack.contains(s)) stack.push(s);
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 将两个NFA的转换关系transforms合并(from -> to), 需要先合并状态和字母表
-     * @param others 用来合并的nfa
-     */
-    public void addTransformsFrom(NFA others){
-        others.transforms.forEach(this::addTransform);
-    }
-
 
     /**
      * 串联两个NFA，丢弃所有动作
@@ -294,31 +285,13 @@ public class NFA{
     }
 
     /**
-     * 并联所有NFA（对应于|或运算），不收束尾部
-     * ```
-     *             ε  NFA1
-     * new_start <-   ...
-     *             ε  NFAn
-     * ```
+     * 将两个NFA的转换关系transforms合并(from -> to), 需要先合并状态和字母表
+     * @param others 用来合并的nfa
      */
-    public static NFA parallelAll (List<NFA> nfas) {
-        NFA res = new NFA();
-        res.startStates.add(new State());
-        res.states.addAll(res.startStates);
-        for (NFA nfa : nfas) {
-            res.acceptStates.addAll(nfa.acceptStates);
-            res.states.addAll(nfa.states);
-            res.alphabet.addAll(nfa.alphabet);
-            for (State acc : nfa.acceptStates) {
-                res.acceptActionMap.put(acc, nfa.acceptActionMap.get(acc));
-            }
-        }
-        for (NFA nfa : nfas)
-            res.addTransformsFrom(nfa);
-        for (NFA nfa : nfas)
-            res.linkByEpsilon(res.startStates, nfa.startStates);
-        return res;
+    public void addTransformsFrom(NFA others){
+        others.transforms.forEach(this::addTransform);
     }
+
     void addTransform(State start, Transform transform){
         if(this.transforms.containsKey(start))
             this.transforms.get(start).merge(transform);
@@ -326,53 +299,38 @@ public class NFA{
             this.transforms.put(start, transform);
     }
 
-    void addTransform(State start, FAChar inStr, Set<State> states){
-        if(this.transforms.containsKey(start))
-            this.transforms.get(start).add(inStr, states);
-        else
-            this.transforms.put(start, new Transform(inStr, states));
+    Set<State> getNextStates(State start, LexChar lexChar){
+        Set<State> res = new HashSet<>();
+        if(!this.transforms.containsKey(start))
+            return res;
+        Set<State> temp = this.transforms.get(start).getMap().get(lexChar);
+        if(temp != null)
+            res.addAll(temp);
+        return res;
     }
 
-    /**
-     * 得到从State出发的所有一步转移关系
-     * 浅拷贝, 得到的结果与原 Map 无关, 但没有新建State
-     * @param start 出发的状态
-     * @return FAChar -> target 映射
-     */
-    Transform getTransformFrom(State start){
-        return new Transform(this.transforms.get(start));
+    Set<State> getNextStatesByEpsilon(State start){
+        return getNextStates(start, SpecialChar.EPSILON.toFAChar());
     }
 
-    /**
-     * 得到从State出发的所有状态
-     * 没有新建State
-     * @param start 出发的状态
-     * @return 目标状态集合
-     */
-    Set<State> getNextStates(State start){
-        return this.transforms.get(start).getAllStates();
-    }
-
-    /**
-     * 得到从State出发, 且输入字符 ch 内的所有一步转移关系
-     * 浅拷贝, 得到的结果与原 Map 无关, 但没有新建State
-     * @param start 出发的状态
-     * @param ch 输入字符
-     * @return FAChar -> target 映射
-     */
-    Transform getTransformFrom(State start, FAChar ch){
-        return this.transforms.get(start).getTransform(ch);
-    }
-
-    Set<State> getNextStates(State start, FAChar str){
-        return this.transforms.get(start).getAllStates(str);
-    }
-
-    Set<State> getNextStates(State start, Character character){
-        return this.transforms.get(start).getAllStates(new FAChar(character));
-    }
-
-    Set<State> getNextStates(State start, SpecialChar spChar){
-        return this.transforms.get(start).getAllStates(spChar.toFAString());
+    public void print(){
+        System.out.println("start states:");
+        for(State s : this.states){
+            if(this.startStates.contains(s))
+                System.out.println("\t"+s.getIndex());
+        }
+        System.out.print("accept states:\n");
+        StringBuilder builder = new StringBuilder("\t");
+        this.acceptStates.forEach(s -> builder.append(s.getIndex()).append(", "));
+        System.out.print(builder.append("\n"));
+        System.out.print("transform table\n");
+        System.out.printf("%-8s%-8s%-20s\n", "start", "char", "end");
+        this.transforms.forEach((start, transforms) -> transforms.getMap().forEach(((faChar, ends) -> {
+            StringBuilder endsBuilder = new StringBuilder();
+            for(State end : ends){
+                endsBuilder.append(end.getIndex()).append(", ");
+            }
+            System.out.printf("%-8d%-8s%-20s\n", start.getIndex(), faChar.getString(), endsBuilder);
+        })));
     }
 }

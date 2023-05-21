@@ -6,9 +6,15 @@ public enum CompilerErrorCode implements ErrorCode {
     //compiler 异常00xx
     //未定义异常
     UNSPECIFIED_ERROR("0000", "未定义的Compiler异常"),
-    BUILD_NFA_FAILED("0001", "未能成果构建NFA"),
+    BUILD_NFA_FAILED("0001", "未能成功构建NFA"),
 
-    TOO_MANY_START_STATES("0002", "NFA中开始状态太多");
+    TOO_MANY_START_STATES("0002", "DFA中开始状态太多"),
+
+    DFA_CONTAINS_EPSILON("0003", "DFA中仍含有epsilon"),
+    UNEXPECTED_OPERATOR("0004", "错误的LexOperator"),
+    MULTIPLE_TRANSFORM_FRO_ONE_INPUT("0005", "DFA中一个输入对应了多个输出"),
+
+    ;
 
 
     /**
