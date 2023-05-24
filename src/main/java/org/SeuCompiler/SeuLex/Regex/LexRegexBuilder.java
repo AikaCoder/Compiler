@@ -310,7 +310,7 @@ public class LexRegexBuilder {
         ArrayList<LexNode> resList = new ArrayList<>();
 
         for (LexNode node : list) {
-            if (!node.isOperator()) {
+            if (node.isCharacter()) {
                 resList.add(node);
                 continue;
             }

@@ -1,4 +1,4 @@
-package org.SeuCompiler.Yacc.LR1Analyzer;
+package org.SeuCompiler.Yacc.Grammar;
 
 import lombok.AllArgsConstructor;
 

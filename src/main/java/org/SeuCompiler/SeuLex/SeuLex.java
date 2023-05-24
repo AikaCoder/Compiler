@@ -8,6 +8,10 @@ import org.SeuCompiler.SeuLex.LexNode.LexChar;
 import org.SeuCompiler.SeuLex.LexNode.SpecialChar;
 import org.SeuCompiler.SeuLex.LexParser.LexParser;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 @Data
 @NoArgsConstructor
@@ -15,37 +19,52 @@ public class SeuLex {
     private DFA miniDFA;
     private List<State> stateList;   //将集合转换成列表, 便于后续在转换矩阵中确定位置
 
-    public static int MaxPrintLine = 10;
-
-    public String analyseLex(String filePath) {
+    public void analyseLex(String filePath) {
         try {
+            File file = new File(filePath);
+            String lexFileName = getFileNameNoEx(file.getName());
+            File resultDir = new File(file.getParent() + File.separator + lexFileName+"_result"+File.separator);
+            File resultFile = new File(resultDir, lexFileName+".lex.c");
+            if(!resultDir.exists())
+                if(!resultDir.mkdirs()) throw new IOException("无法创建目录: "+resultDir);
+
             LexParser parser = new LexParser(filePath);
+            Visualizer visualizer = new Visualizer(resultDir,true);
+
             NFA nfa = new NFA(parser);
             DFA dfa = new DFA(nfa);
             this.miniDFA = dfa.minimize();
+            visualizer.print(nfa, lexFileName+"_NFA");
+            visualizer.print(dfa, lexFileName+"_DFA");
+            visualizer.print(this.miniDFA, lexFileName+"_miniDFA");
+
+            System.out.println("generating C code...");
             this.stateList = new ArrayList<>(miniDFA.getStates());
             List<State> starts = new ArrayList<>(this.miniDFA.getStartStates());
             Collections.swap(stateList, 0, stateList.indexOf(starts.get(0)));   //把start State 换到第一个位置
 
-            return CopyPartBegin +
-                    parser.getCopyPart() +
+            String res =
+                    CopyPartBegin +
+                        parser.getCopyPart()+
                     LexGenerationPartBegin +
-                    preConfigs +
-                    genTransformMatrix() +
-                    genSwitchCase() +
-                    genYYLex(genCaseAction()) +
-                    yyless +
-                    yymore +
+                        preConfigs + genTransformMatrix() + genSwitchCase() +
+                        genYYLex(genCaseAction()) + yyless + yymore +
                     CCodePartBegin +
-                    parser.getCCodePart();
+                        parser.getCCodePart();
+
+            BufferedWriter out = new BufferedWriter(new FileWriter(resultFile));
+            out.write(res);
+            out.flush();
+            out.close();
+            System.out.println("print lex.c of"+lexFileName+" in "+ resultFile);
 
         } catch (SeuCompilerException e) {
             if (e.getLineNum() != null) System.out.println("error at line " + e.getLineNum());
             System.out.println("错误码: "+e.getCode() + ": " + e.getDescription());
             if (e.getOtherInfo() != null) System.out.println(e.getOtherInfo() + '\n');
+        } catch (IOException e){
+            System.out.println("print dfa error: "+ e);
         }
-        return "";
-
     }
     private String genTransformMatrix(){
         StringBuilder res = new StringBuilder(String.format("const int _trans_mat[%d][128] = {\n", this.miniDFA.getStates().size()));
@@ -113,17 +132,17 @@ public class SeuLex {
 
     private final static String CopyPartBegin = """
             
-            ----------      copy part     -----------
+            //----------      copy part     -----------
             
             """;
     private final static String CCodePartBegin = """
             
-            ----------     C code part     -----------
+            //----------     C code part     -----------
             
             """;
     private final static String LexGenerationPartBegin = """
             
-            ---------- Lex generation part -----------
+            //---------- Lex generation part -----------
             
             """;
 
@@ -211,4 +230,14 @@ public class SeuLex {
                 return 0;
             }
             """;
+
+    public static String getFileNameNoEx(String filename) {
+        if ((filename != null) && (filename.length() > 0)) {
+            int dot = filename.lastIndexOf('.');
+            if (dot >-1) {
+                return filename.substring(0, dot);
+            }
+        }
+        return filename;
+    }
 }

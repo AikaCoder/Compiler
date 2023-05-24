@@ -1,4 +1,4 @@
-package org.SeuCompiler.Yacc.LR1Analyzer;
+package org.SeuCompiler.Yacc.Grammar;
 
 import lombok.Getter;
 
@@ -15,7 +15,6 @@ import java.util.Objects;
  * @param lookahead   展望符（终结符）
  */
 
-@Getter
 public record LR1Item(int producer, LR1Producer rawProducer, int dotPosition, int lookahead) {
     public LR1Item(int producer, LR1Producer rawProducer, int dotPosition, int lookahead) {
         this.producer = producer;

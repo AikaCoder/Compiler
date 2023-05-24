@@ -20,4 +20,4 @@ if              {return IF;}
 {integer}       {yylval = convert_int();return INTEGER;}
 %%
 
-install_id {}
+install_id() {}

@@ -1,4 +1,4 @@
-package org.SeuCompiler.Yacc.YaccParser;
+package org.SeuCompiler.Yacc.Grammar;
 
 /**
  * YaccParser相关

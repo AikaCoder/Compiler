@@ -1,5 +1,9 @@
 package org.SeuCompiler.Yacc.YaccParser;
 
+import org.SeuCompiler.Yacc.Grammar.OperatorAssoc;
+import org.SeuCompiler.Yacc.Grammar.YaccParserOperator;
+import org.SeuCompiler.Yacc.Grammar.YaccParserProducer;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -23,12 +27,6 @@ public class YaccParser {
     private String _producerPart;
     private String _userCodePart;
 
-    static final String PATTERN_BLOCK_PRODUCER = "((\\w+)\\s*\n\\s+:(\\s+(.+?)({[\\s\\S]*?})?\n)(\\s+\\|\\s+(.+?)({[\\s\\S]*?})?\n)*\\s+;)+";
-    // $1为LHS，$3为首个RHS，$4为动作代码（带大括号）
-    static final String PATTERN_INITIAL_PRODUCER = "(\\w+)\n\\s+:(\\s+(.+?)({[\\s\\S]*?})?\n)+";
-    // $2为RHS，$3为动作代码（带大括号）
-    static final String PATTERN_CONTINUED_PRODUCER = "(\\s+\\|\\s+(.+?)({[\\s\\S]*?})?\n)+";
-
     public YaccParser(String filePath) {
         _tokenDecl = new ArrayList<>();
         _operatorDecl = new ArrayList<>();
@@ -45,7 +43,7 @@ public class YaccParser {
                 sb.append("\n");
             }
             _rawContent = sb.toString().replaceAll("\r\n", "\n");
-            _splitContent = List.of(_rawContent.split("\n"));
+            _splitContent = new ArrayList<>(List.of(_rawContent.split("\n")));
         } catch (IOException e) {
             //在命令行打印异常信息在程序中出错的位置及原因
             e.printStackTrace();
@@ -182,18 +180,18 @@ public class YaccParser {
             String v = this._splitContent.get(i).trim();
 
             switch (v) {
-                case "%{":
+                case "%{" -> {
                     assert copyPartStart == -1 : "Bad .y structure. Duplicate %{.";
                     copyPartStart = i;
-                    break;
-                case "%}":
+                }
+                case "%}" -> {
                     assert copyPartEnd == -1 : "Bad .y structure. Duplicate %}.";
                     copyPartEnd = i;
-                    break;
-                case "%%":
+                }
+                case "%%" -> {
                     assert twoPercent.size() < 2 : "Bad .y structure. Duplicate %%.";
                     twoPercent.add(i);
-                    break;
+                }
             }
         }
         assert copyPartStart != -1 : "Bad .y structure. {% not found.";

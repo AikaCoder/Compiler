@@ -1,6 +1,7 @@
 package org.SeuCompiler.Yacc.LR1Analyzer;
 
 import lombok.Getter;
+import org.SeuCompiler.Yacc.Grammar.*;
 import org.SeuCompiler.Yacc.YaccParser.*;
 
 import javax.swing.*;

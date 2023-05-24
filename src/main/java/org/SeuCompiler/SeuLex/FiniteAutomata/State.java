@@ -21,6 +21,11 @@ public final class State {
         State._Index = State._Index+1;
     }
 
+    public State(int index){
+        this.uuid = UUID.randomUUID();
+        this.index = index;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

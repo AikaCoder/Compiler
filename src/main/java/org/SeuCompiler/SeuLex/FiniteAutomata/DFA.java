@@ -1,7 +1,7 @@
 package org.SeuCompiler.SeuLex.FiniteAutomata;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.SeuCompiler.Exception.CompilerErrorCode;
 import org.SeuCompiler.Exception.SeuCompilerException;
@@ -10,45 +10,44 @@ import org.SeuCompiler.SeuLex.LexNode.SpecialChar;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-@Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DFA{
-    private Set<State> startStates = new HashSet<>();
-    private Set<State> acceptStates = new HashSet<>();
-    private Set<State> states = new HashSet<>();
-    private Set<LexChar> alphabet = new HashSet<>();
+@Getter
+public final class DFA extends FA{
     private Map<State, Map<LexChar, State>> transforms = new HashMap<>();
-    private final Map<State, Action> acceptActionMap = new HashMap<>();
     
     /**
      * 使用NFA构建DFA
      * @param nfa 用来初始化的NFA
      */
     public DFA(@NotNull NFA nfa) throws SeuCompilerException {
-        //----------初始化(starts, alphabet)-----------
         this();
         if(nfa.getStartStates().size() == 0) return;
+
+        System.out.println("building DFA from NFA ...");
+        int index = 0;
+
+        //----------初始化(starts, alphabet)-----------
         //用两个List记录dfa的状态集合和新状态的对应关系
         List<Set<State>> oldStatesList = new ArrayList<>();
         List<State> newStateList = new ArrayList<>();
-        Set<State> oldStarts = nfa.epsilonClosure(nfa.getStartStates());
-        State newStart = new State();
+        Set<State> oldStarts = nfa.getTransforms().epsilonClosure(nfa.getStartStates());
+        printEquivalenceClass(index, oldStarts,"ε-Closure");
+        State newStart = new State(index++);
+
         oldStatesList.add(oldStarts);
         newStateList.add(newStart);
-        this.alphabet.addAll(nfa.getAlphabet());
         this.startStates.add(newStart);    //定义一个新的状态为起始状态
         this.states.add(newStart);
 
         //--------合并等价类(states, transform)---------
         for(int i = 0; i < newStateList.size(); i++){
-            AtomicBoolean addAny = new AtomicBoolean(false);
+            boolean addAny = false;
             //对每一个dfa新状态, 取对应的nfa旧状态集, 并得到其在输入不同字符后等到的新集合(进行了epsilon后扩展)
             Set<State> oldBegins = oldStatesList.get(i);
             State newBegin = newStateList.get(i);
-            Transform expand = nfa.expandTransformWithEpsilon(oldBegins);
+            Transform expand = nfa.getTransforms().expandTransformWithEpsilon(oldBegins);
             for (Map.Entry<LexChar, Set<State>> e : expand.getMap().entrySet()) {
                 LexChar str = e.getKey();
                 Set<State> oldEnds = e.getValue();
@@ -56,16 +55,17 @@ public class DFA{
                 if (oldStatesList.contains(oldEnds)) {
                     addTransform(newBegin, str, newStateList.get(oldStatesList.indexOf(oldEnds)));
                 } else {
-                    State newEnd = new State();
                     oldStatesList.add(oldEnds);
+                    printEquivalenceClass(index, oldEnds, "ε-Closure");
+                    State newEnd = new State(index++);
                     newStateList.add(newEnd);
                     addTransform(newBegin, str, newEnd);
                 }
 
-                if (str.equalsTo(SpecialChar.ANY)) addAny.set(true);
+                if (str.equalsTo(SpecialChar.ANY)) addAny = true;
             }
             //处理输入字符为ANY的情况
-            if(addAny.get()){
+            if(addAny){
                 Map<LexChar, State> temp = this.transforms.get(newBegin);
                 State targetOfAny = temp.get(SpecialChar.ANY.toFAChar());
                 temp.entrySet().removeIf(entry -> entry.getValue().equals(targetOfAny));//删除所有指向target of any的转换
@@ -82,19 +82,16 @@ public class DFA{
             Set<State> refers = oldStatesList.get(i);
             refers.forEach(refer -> {
                 if(nfa.getAcceptStates().contains(refer)){
-                    //如果nfa的起始状态的epsilon闭包包含可接受状态
-                    //则将对应的order最小(出现最早, 优先级最高)的动作作为newState对应的动作存放到acceptActionMap中
-                    Action action = this.acceptActionMap.get(s); //初始为null, 但几次循环后可能会有值
+                    Action actionNow = this.acceptActionMap.get(s);
                     Action compare = nfa.getAcceptActionMap().get(refer);
-                    if(action == null){
-                        this.acceptStates.add(s);
-                        this.acceptActionMap.put(s, compare);
-                    }else if(action.order() > compare.order()){
-                        this.acceptActionMap.put(s, compare);
-                    }   //else action存在, 且 不用改变action
+                    Action smaller = compare.lessThan(actionNow) ? compare : actionNow;
+                    this.acceptStates.add(s);
+                    this.acceptActionMap.put(s, smaller);
                 }
             });
         }
+
+        System.out.println("build DFA complete.");
     }
 
     /**
@@ -102,7 +99,15 @@ public class DFA{
      * @return 最小化之后的DFA
      */
     public DFA minimize() throws SeuCompilerException {
-        if(this.alphabet.contains(SpecialChar.ANY.toFAChar())) return this;   //不考虑any
+        System.out.println("minimizing DFA...");
+        for (Map.Entry<State, Map<LexChar, State>> e : this.transforms.entrySet()) {
+            Map<LexChar, State> lexCharStateMap = e.getValue();
+            if (lexCharStateMap.containsKey(SpecialChar.ANY.toFAChar())) {
+                System.out.println("stopped because not supported minimizing DFA with [any] defined.");
+                return this;//不考虑any todo
+            }
+        }
+
         //------------初始化-----------
         //根据可接受状态划分成terminal与nonTerminal
         Set<State> terminals = new HashSet<>(this.acceptStates);
@@ -114,12 +119,15 @@ public class DFA{
         List<Set<State>> divisions = new ArrayList<>();  //用于存放不同状态划分的散列
         //因为不同的accept state可能对应不同的action/regex,
         //所以这里不能像一般情况一样将所有的terminal合起来作为一种情况, 而要分开来进行划分
-        terminals.forEach(ter -> divisions.add( new HashSet<>(Set.of(ter))));
+        for (State ter : terminals)
+            divisions.add(new HashSet<>(Set.of(ter)));
         //nonTerminal 初始化时nonTerminal本身作为一种划分放入divisions中
         divisions.add(nonTerminals);
 
         //------------拆分-----------
+        System.out.println("divide state class by is accept action and transforms.");
         boolean dividable = true;
+        int index = 0;
         List<Set<State>> completedDivisions = new ArrayList<>();    //已经划分完毕(即无法再分)的划分的集合
         while(dividable){
             dividable = false;
@@ -130,6 +138,7 @@ public class DFA{
                 Set<State> divSet = setIterator.next();
                 if(divSet.size() <= 1){ //只有一个元素, divSet划分完毕
                     completedDivisions.add(divSet);
+                    printEquivalenceClass(index++, divSet, "minimize");
                     setIterator.remove();
                     continue;
                 }
@@ -149,6 +158,7 @@ public class DFA{
                 }
                 //上面的循环结束后, divSet中所有元素(State)的Transform是一样的, 因此也已经划分完毕.
                 completedDivisions.add(divSet);
+                printEquivalenceClass(index++, divSet, "minimize");
                 setIterator.remove();
 
                 if(newDivision.size()>0) newDivs.add(newDivision);  //有新划分
@@ -158,14 +168,16 @@ public class DFA{
         completedDivisions.addAll(divisions);   //结束后将可能还有的划分放入complete divisions里面
 
         //------------划分结束, 重构DFA-----------
+        index = 0;
         Map<State, State> oldNewMap = new HashMap<>(); //新旧状态映射表
-        completedDivisions.forEach(div ->{
-            State newState = new State();   //每一个div对应一个新状态
-            div.forEach(state ->{oldNewMap.put(state, newState);});
-        });
+        for (Set<State> div : completedDivisions) {
+            State newState = new State(index++);   //每一个div对应一个新状态
+            div.forEach(state -> {
+                oldNewMap.put(state, newState);
+            });
+        }
 
         DFA dfa = new DFA();
-        dfa.alphabet.addAll(this.alphabet);
         this.states.forEach(s ->{
             if(this.startStates.contains(s)) dfa.startStates.add(oldNewMap.get(s));
             if(this.acceptStates.contains(s)) dfa.acceptStates.add(oldNewMap.get(s));
@@ -191,61 +203,8 @@ public class DFA{
                 throw new SeuCompilerException(CompilerErrorCode.DFA_CONTAINS_EPSILON);
         }
 
-
+        System.out.println("minimize complete");
         return dfa;
-    }
-
-    public boolean test(String str) {
-        for (State start : this.startStates) {  //虽然理论上说构造出来的DFA只有一个start...
-            State current = start;
-            int matchedCount = 0;
-            Stack<State> candidates = new Stack<>();
-
-            for (; matchedCount < str.length(); matchedCount++){
-                LexChar currentChar = new LexChar(str.charAt(matchedCount));
-                if (!this.alphabet.contains(currentChar)
-                        && !this.alphabet.contains(SpecialChar.ANY.toFAChar()))//字母表没有该字符, 且不存在ANY转移
-                    return false;
-                State newState = this.transforms.get(current).get(currentChar);
-                matchedCount++;
-                if(newState != null && !candidates.contains(newState))
-                    candidates.add(newState);
-                if(candidates.isEmpty()) break;
-                else current = candidates.pop();
-            }
-
-            if (matchedCount == str.length() && this.acceptStates.contains(current)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void print(){
-        System.out.println("\n========= print DFA =========");
-        List<State> allStates = new ArrayList<>(this.states);
-        List<State> starts = new ArrayList<>(this.startStates);
-        int i = 0;
-        for(State s: starts){
-            Collections.swap(allStates, i, allStates.indexOf(s));
-            i++;
-        }
-        System.out.println("start states:");
-        for(State s : allStates){
-            if(this.startStates.contains(s))
-                System.out.println("\t"+allStates.indexOf(s));
-        }
-        System.out.print("\naccept states & actions:\n");
-        this.acceptActionMap.forEach(((state, action) -> {
-            System.out.println("\t"+allStates.indexOf(state)+"\t -> "+action.code());
-        }));
-        System.out.print("\ntransform table\n");
-        System.out.printf("\t%-8s%-8s%-8s\n", "start", "char", "end");
-        this.transforms.forEach((start, transforms) ->{
-            transforms.forEach(((faChar, end) -> {
-                System.out.printf("\t%-8d%-8s%-8d\n", allStates.indexOf(start), faChar.getString(), allStates.indexOf(end));
-            }));
-        });
     }
 
     private void addTransform(State begin, LexChar lexChar, State end) throws SeuCompilerException {
@@ -260,5 +219,14 @@ public class DFA{
             return;
         }
         transform.put(lexChar, end);
+    }
+
+    private void printEquivalenceClass(int index, Set<State> states, String type){
+        StringBuilder builder = new StringBuilder(type).append("_class_").append(index).append(":\t{");
+        for(State state : states){
+            builder.append(state.getIndex()).append(", ");
+        }
+        builder.append("}");
+        System.out.println(builder);
     }
 }

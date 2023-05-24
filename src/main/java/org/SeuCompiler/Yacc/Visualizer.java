@@ -2,8 +2,8 @@ package org.SeuCompiler.Yacc;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import org.SeuCompiler.Yacc.LR1Analyzer.LR1DFA;
-import org.SeuCompiler.Yacc.LR1Analyzer.LR1Item;
+import org.SeuCompiler.Yacc.Grammar.LR1DFA;
+import org.SeuCompiler.Yacc.Grammar.LR1Item;
 import org.SeuCompiler.Yacc.LR1Analyzer.ACTIONTableCell;
 import org.SeuCompiler.Yacc.LR1Analyzer.LR1Analyzer;
 
@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Visualiser {
+public class Visualizer {
     /**
      * 实现了LR(1)分析表的可视化功能
      * 将ACTION和GOTO表格转换为JSON数据并存储在本地文件中

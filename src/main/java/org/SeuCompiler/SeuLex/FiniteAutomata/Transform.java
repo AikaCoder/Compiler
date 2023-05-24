@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.Set;
 
 @Getter
-class Transform {
-    final Map<LexChar, Set<State>> map;
+public class Transform {
+    private final Map<LexChar, Set<State>> map;
     Transform(){
         map = new HashMap<>();
     }

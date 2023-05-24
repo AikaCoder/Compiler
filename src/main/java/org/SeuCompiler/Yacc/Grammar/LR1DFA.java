@@ -1,4 +1,4 @@
-package org.SeuCompiler.Yacc.LR1Analyzer;
+package org.SeuCompiler.Yacc.Grammar;
 
 import lombok.Data;
 
@@ -11,7 +11,7 @@ import java.util.Map;
  * LR1项目集族（LR1自动机）
  */
 @Data
-public class LR1DFA {
+public final class LR1DFA {
     private Integer startStateId;
     private final List<LR1State> states;
     private final List<List<Map<String, Integer>>> adjList; // 分别是to和alpha

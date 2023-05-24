@@ -1,6 +1,6 @@
 package org.SeuCompiler.Yacc;
 
-import org.SeuCompiler.Yacc.LR1Analyzer.LR1Producer;
+import org.SeuCompiler.Yacc.Grammar.LR1Producer;
 import org.SeuCompiler.Yacc.LR1Analyzer.ACTIONTableCell;
 import org.SeuCompiler.Yacc.LR1Analyzer.GrammarSymbol;
 import org.SeuCompiler.Yacc.LR1Analyzer.LR1Analyzer;

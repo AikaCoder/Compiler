@@ -1,6 +1,4 @@
-package org.SeuCompiler.Yacc.LR1Analyzer;
-
-import org.SeuCompiler.Yacc.YaccParser.OperatorAssoc;
+package org.SeuCompiler.Yacc.Grammar;
 
 /**
  * LR1运算符
