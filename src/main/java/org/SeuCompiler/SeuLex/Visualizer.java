@@ -73,10 +73,7 @@ public class Visualizer {
 
     private @NotNull StringBuilder getBuilderFrom(FA fa, String name){
         StringBuilder builder = new StringBuilder("start states:\n");
-        for(State s : fa.getStates()){
-            if(fa.getStartStates().contains(s))
-                builder.append("\t").append(s.getIndex()).append("\n");
-        }
+        builder.append("\t").append(fa.getStartState().getIndex()).append("\n");
 
         builder.append("\naccept states:\n\t");
         for(State state : fa.getAcceptStates()) builder.append(state.getIndex()).append(", ");

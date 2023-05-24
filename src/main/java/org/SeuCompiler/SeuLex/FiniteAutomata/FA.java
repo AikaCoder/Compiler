@@ -12,16 +12,10 @@ import java.util.Set;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class FA {
-    protected final Set<State> startStates = new HashSet<>();
+    protected State startState = null;
     protected final Set<State> acceptStates = new HashSet<>();
     protected final Set<State> states = new HashSet<>();
     protected final Map<State, Action> acceptActionMap = new HashMap<>();
-
-    protected void addAllSet(FA other){
-        this.startStates.addAll(other.startStates);
-        this.acceptStates.addAll(other.acceptStates);
-        this.states.addAll(other.states);
-    }
-
 }

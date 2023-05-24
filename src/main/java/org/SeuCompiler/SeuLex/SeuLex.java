@@ -40,8 +40,7 @@ public class SeuLex {
 
             System.out.println("generating C code...");
             this.stateList = new ArrayList<>(miniDFA.getStates());
-            List<State> starts = new ArrayList<>(this.miniDFA.getStartStates());
-            Collections.swap(stateList, 0, stateList.indexOf(starts.get(0)));   //把start State 换到第一个位置
+            Collections.swap(stateList, 0, stateList.indexOf(this.miniDFA.getStartState()));   //把start State 换到第一个位置
 
             String res =
                     CopyPartBegin +

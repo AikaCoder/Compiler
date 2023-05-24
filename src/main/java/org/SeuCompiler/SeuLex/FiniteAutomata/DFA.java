@@ -23,7 +23,6 @@ public final class DFA extends FA{
      */
     public DFA(@NotNull NFA nfa) throws SeuCompilerException {
         this();
-        if(nfa.getStartStates().size() == 0) return;
 
         System.out.println("building DFA from NFA ...");
         int index = 0;
@@ -32,13 +31,13 @@ public final class DFA extends FA{
         //用两个List记录dfa的状态集合和新状态的对应关系
         List<Set<State>> oldStatesList = new ArrayList<>();
         List<State> newStateList = new ArrayList<>();
-        Set<State> oldStarts = nfa.getTransforms().epsilonClosure(nfa.getStartStates());
+        Set<State> oldStarts = nfa.getTransforms().epsilonClosure(Set.of(nfa.getStartState()));
         printEquivalenceClass(index, oldStarts,"ε-Closure");
         State newStart = new State(index++);
 
         oldStatesList.add(oldStarts);
         newStateList.add(newStart);
-        this.startStates.add(newStart);    //定义一个新的状态为起始状态
+        this.startState = newStart;    //定义一个新的状态为起始状态
         this.states.add(newStart);
 
         //--------合并等价类(states, transform)---------
@@ -169,33 +168,31 @@ public final class DFA extends FA{
 
         //------------划分结束, 重构DFA-----------
         index = 0;
+        DFA dfa = new DFA();
         Map<State, State> oldNewMap = new HashMap<>(); //新旧状态映射表
         for (Set<State> div : completedDivisions) {
-            State newState = new State(index++);   //每一个div对应一个新状态
-            div.forEach(state -> {
-                oldNewMap.put(state, newState);
-            });
+            if(div.contains(this.startState)){
+                State newState = new State(index++);
+                dfa.startState = newState;
+                oldNewMap.put(this.startState, newState);
+                break;
+            }
         }
-
-        DFA dfa = new DFA();
+        for (Set<State> div : completedDivisions) {
+            if(div.contains(this.startState)) continue;
+            State newState = new State(index++);   //每一个div对应一个新状态
+            div.forEach(state -> oldNewMap.put(state, newState));
+        }
         this.states.forEach(s ->{
-            if(this.startStates.contains(s)) dfa.startStates.add(oldNewMap.get(s));
             if(this.acceptStates.contains(s)) dfa.acceptStates.add(oldNewMap.get(s));
             dfa.states.add(oldNewMap.get(s));
         });
-
         this.transforms.forEach((begin, transform) -> {
             Map<LexChar, State> tempMap = new HashMap<>();
             transform.forEach((str, end) -> tempMap.put(str, oldNewMap.get(end)));
             dfa.transforms.put(oldNewMap.get(begin), tempMap);
         });
-
-        this.acceptActionMap.forEach((state, action) -> {
-            dfa.acceptActionMap.put(oldNewMap.get(state), action);
-        });
-
-        if(dfa.startStates.size() != 1)
-            throw new SeuCompilerException(CompilerErrorCode.TOO_MANY_START_STATES);
+        this.acceptActionMap.forEach((state, action) -> dfa.acceptActionMap.put(oldNewMap.get(state), action));
 
         for (Map.Entry<State, Map<LexChar, State>> entry : dfa.transforms.entrySet()) {
             Map<LexChar, State> value = entry.getValue();

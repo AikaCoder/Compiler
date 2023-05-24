@@ -8,7 +8,6 @@ import org.SeuCompiler.SeuLex.LexParser.LexParser;
 import org.SeuCompiler.SeuLex.LexNode.LexNode;
 import org.SeuCompiler.SeuLex.LexNode.LexOperator;
 import org.SeuCompiler.SeuLex.Regex.LexRegex;
-import org.SeuCompiler.SeuLex.Visualizer;
 
 import java.util.*;
 
@@ -42,7 +41,7 @@ public final class NFA extends FA{
                     }
                     case QUESTION -> { //A? -> A|\ε
                         NFA nfa = stack.pop();
-                        nfa.transforms.linkByEpsilon(nfa.startStates, nfa.acceptStates);
+                        nfa.transforms.linkByEpsilon(Set.of(nfa.startState), nfa.acceptStates);
                         stack.push(nfa);
                     }
                     default -> throw new SeuCompilerException(
@@ -57,7 +56,7 @@ public final class NFA extends FA{
             throw new SeuCompilerException(CompilerErrorCode.BUILD_NFA_FAILED);
         NFA res = stack.pop();
 
-        this.startStates.addAll(res.startStates);
+        this.startState = res.startState;
         this.acceptStates.addAll(res.acceptStates);
         this.states.addAll(res.states);
         this.transforms.putAll(res.transforms);
@@ -74,13 +73,13 @@ public final class NFA extends FA{
             nfas.add(new NFA(regex, parser.getRegexActionMap().get(regex)));
         }
         State start = new State();
-        this.startStates.add(start);
+        this.startState = start;
         this.states.add(start);
         for (NFA nfa : nfas) {
             this.acceptStates.addAll(nfa.acceptStates);
             this.states.addAll(nfa.states);
             this.transforms.merge(nfa.transforms);
-            this.transforms.linkByEpsilon(this.startStates, nfa.startStates);
+            this.transforms.linkByEpsilon(Set.of(this.startState), Set.of(nfa.startState));
             this.acceptActionMap.putAll(nfa.acceptActionMap);
         }
         System.out.print("========== build NFAs complete ==========\n");
@@ -103,7 +102,7 @@ public final class NFA extends FA{
         this();
         State start = new State();
         State end = new State();
-        this.startStates.add(start);
+        this.startState = start;
         this.acceptStates.add(end);
         this.states.addAll(Set.of(start,end));
         this.transforms.put(start, new Transform(init, Set.of(end)));
@@ -117,7 +116,7 @@ public final class NFA extends FA{
         Map<State, State> oldNewMap = new HashMap<>();
         for (State s : other.states) {
             State newState = new State();
-            if (other.startStates.contains(s)) this.startStates.add(newState);
+            if (other.startState == s) this.startState = newState;
             if (other.acceptStates.contains(s)) this.acceptStates.add(newState);
             this.states.add(newState);
             oldNewMap.put(s, newState);
@@ -139,12 +138,11 @@ public final class NFA extends FA{
      * ```
      */
     public void kleene(){
-        Set<State> oldStarts = new HashSet<>(this.startStates);    //保存原有starts 到 oldStarts
+        Set<State> oldStarts = new HashSet<>(Set.of(this.startState));    //保存原有starts 到 oldStarts
         State newStart = new State();                              //新建一个状态作为start
-        this.startStates.clear();
-        this.startStates.add(newStart);      //将新状态放入对应集合
+        this.startState = newStart;
         this.states.add(newStart);
-        this.transforms.linkByEpsilon(this.startStates, oldStarts);                //将新旧状态相连
+        this.transforms.linkByEpsilon(Set.of(this.startState), oldStarts);                //将新旧状态相连
 
         Set<State> oldAccepts = new HashSet<>(this.acceptStates);
         State newAccept = new State();
@@ -153,7 +151,7 @@ public final class NFA extends FA{
         this.states.add(newAccept);
         this.transforms.linkByEpsilon(oldAccepts, this.acceptStates);
 
-        this.transforms.linkByEpsilon(this.startStates, this.acceptStates);
+        this.transforms.linkByEpsilon(Set.of(this.startState), this.acceptStates);
         this.transforms.linkByEpsilon(oldAccepts, oldStarts);
     }
 
@@ -165,13 +163,13 @@ public final class NFA extends FA{
      */
     public static NFA serial(NFA nfa1, NFA nfa2){
         NFA res = new NFA();
-        res.startStates.addAll(nfa1.startStates);
+        res.startState = nfa1.startState;
         res.acceptStates.addAll(nfa2.acceptStates);
         res.states.addAll(nfa1.states);
         res.states.addAll(nfa2.states);
         res.transforms.merge(nfa1.transforms);
         res.transforms.merge(nfa2.transforms);
-        res.transforms.linkByEpsilon(nfa1.acceptStates, nfa2.startStates);
+        res.transforms.linkByEpsilon(nfa1.acceptStates, Set.of(nfa2.startState));
         return res;
     }
 
@@ -185,18 +183,18 @@ public final class NFA extends FA{
      */
     public static NFA parallel (NFA nfa1, NFA nfa2) {
         NFA res = new NFA();
-        res.startStates.add(new State());
+        res.startState = new State();
         res.acceptStates.add(new State());
 
-        res.states.addAll(res.startStates);
+        res.states.add(res.startState);
         res.states.addAll(nfa1.states);
         res.states.addAll(nfa2.states);
         res.states.addAll(res.acceptStates);
 
         res.transforms.merge(nfa1.transforms);
         res.transforms.merge(nfa2.transforms);
-        res.transforms.linkByEpsilon(res.startStates, nfa1.startStates);
-        res.transforms.linkByEpsilon(res.startStates, nfa2.startStates);
+        res.transforms.linkByEpsilon(Set.of(res.startState), Set.of(nfa1.startState));
+        res.transforms.linkByEpsilon(Set.of(res.startState), Set.of(nfa2.startState));
         res.transforms.linkByEpsilon(nfa1.acceptStates, res.acceptStates);
         res.transforms.linkByEpsilon(nfa2.acceptStates, res.acceptStates);
         return res;
