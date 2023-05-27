@@ -1,4 +1,5 @@
 %{
+
 %}
 
 %token IDENTIFIER CONSTANT STRING_LITERAL SIZEOF
@@ -472,3 +473,4 @@ void yyerror(char const *s)
 	fflush(stdout);
 	printf("\n%*s\n%*s\n", column, "^", column, s);
 }
+

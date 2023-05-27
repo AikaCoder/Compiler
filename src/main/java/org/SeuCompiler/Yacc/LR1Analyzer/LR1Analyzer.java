@@ -3,6 +3,7 @@ package org.SeuCompiler.Yacc.LR1Analyzer;
 import lombok.Getter;
 import org.SeuCompiler.Yacc.Grammar.*;
 import org.SeuCompiler.Yacc.YaccParser.*;
+import org.SeuCompiler.Yacc.LR1Analyzer.GrammarSymbol.GrammarSymbolType;
 
 import javax.swing.*;
 import java.util.*;
@@ -39,6 +40,24 @@ public class LR1Analyzer {
         this.first = new ArrayList<>();
 
         // 下面是this._distributeId(yaccParser)
+        this.distrubuteId(yaccParser);
+        this.convertProducer(yaccParser.getProducers());
+        this.convertOperator(yaccParser.getOperatorDecl());
+        this.epsilon = this.getSymbolId(
+                new GrammarSymbol(GrammarSymbolType.SPTOKEN, "SP_EPSILON")
+        );
+        System.out.print("\n[ constructLR1DFA or LALRDFA, this might take a long time... ]");
+        this.preCalFirst();
+        this.constructLR1DFA();
+
+        // 如果构造LALR
+        if (useLALR) {
+            this.dfa = LR1DFAtoLALRDFA(this);
+        }
+        System.out.print("\n[ constructACTIONGOTOTable, this might take a long time... ]");
+
+        this.constructACTIONGOTOTable();
+        System.out.print("\n");
     }
 
     // 去除转义斜杠，相当于String.raw的逆方法
@@ -164,45 +183,13 @@ public class LR1Analyzer {
         );
     }
 
-    public List<GrammarSymbol> getSymbols() {
-        return this.symbols;
-    }
-
-    public LR1DFA getDfa() {
-        return this.dfa;
-    }
-
-    public List<LR1Producer> getProducers() {
-        return this.producers;
-    }
-
-    public List<List<ACTIONTableCell>> getACTIONTable() {
-        return this.ACTIONTable;
-    }
-
-    public List<List<Integer>> getGOTOTable() {
-        return this.GOTOTable;
-    }
-
-    public List<Integer> getACTIONReverseLookup() {
-        return this.ACTIONReverseLookup;
-    }
-
-    public List<Integer> getGOTOReverseLookup() {
-        return this.GOTOReverseLookup;
-    }
-
     /**
      * 获取编号后的符号的编号
      */
     public int getSymbolId(GrammarSymbol grammarSymbol) {
         for (GrammarSymbol gs : this.symbols) {
-            if (
-                    (grammarSymbol.type() == null || (Objects.equals(
-                            gs.type().getType(), grammarSymbol.type().getType()
-                    ))) &&
-                            gs.content().equals(grammarSymbol.content())
-            ) {
+            if ((grammarSymbol.type() == null || gs.type().getType().equals(grammarSymbol.type().getType()))
+                    && gs.content().equals(grammarSymbol.content())) {
                 return symbols.indexOf(gs);
             }
         }
@@ -476,7 +463,7 @@ public class LR1Analyzer {
         LR1Producer initProducer = this.producersOf(this.startSymbol).get(0);
         LR1State I0 = this.CLOSURE(
                 new LR1State(
-                        new ArrayList<LR1Item>(
+                        new ArrayList<>(
                                 List.of(
                                         new LR1Item(
                                                 this.producers.indexOf(initProducer),
@@ -652,7 +639,7 @@ public class LR1Analyzer {
         // ===== 填充ACTIONTable =====
         // ===========================
         Function<Integer, Integer> lookup =
-                x -> Collections.singletonList(this.ACTIONReverseLookup).indexOf(x);
+                x -> this.ACTIONReverseLookup.indexOf(x);
         JProgressBar pb = new JProgressBar(0, dfaStates.size());
         pb.setValue(0);
         pb.setStringPainted(true);
@@ -767,11 +754,14 @@ public class LR1Analyzer {
                 ) {
                     this.ACTIONTable.get(i).set(
                             lookup.apply(
+                                    /*
                                     this.getSymbolId(
                                             new GrammarSymbol(
-                                                    GrammarSymbol.GrammarSymbolType.SPTOKEN, "SP_END"
+                                                    GrammarSymbolType.SPTOKEN, "SP_END"
                                             )
                                     )
+                                    */
+                                    item.lookahead()
                             ),
                             new ACTIONTableCell(
                                     ACTIONTableCell.ACTIONTableCellType.ACC,

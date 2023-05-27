@@ -13,23 +13,57 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
-@Data
 @NoArgsConstructor
 public class SeuLex {
     private DFA miniDFA;
     private List<State> stateList;   //将集合转换成列表, 便于后续在转换矩阵中确定位置
+    private String resultDirStr = null;
+    private boolean printToFile = true;
+
+    private boolean debugMode = false;
+
+    /**
+     * 设置结果的输入文件夹.
+     * 如果不指定, 或设为null, 则会默认在`.l`文件目录下创建同名+`_result`目录存放结果
+     * @param dir 输出路径
+     */
+    public void setResultDir(String dir){
+        this.resultDirStr = dir;
+    }
+
+    /**
+     * 中间过程的FA是否存放在文件中, 默认为true.
+     * 若为false则直接在命令行窗口打印.
+     * @param print 是否打印到文件
+     */
+    public void setPrintFAToFile(boolean print){
+        this.printToFile = print;
+    }
+
+    /**
+     * 选择最后的结果是否打开debug模式
+     * @param mode debug模式, 默认为false, 关闭.
+     */
+    public void setDebugMode(boolean mode){
+        this.debugMode = mode;
+    }
 
     public void analyseLex(String filePath) {
         try {
             File file = new File(filePath);
             String lexFileName = getFileNameNoEx(file.getName());
-            File resultDir = new File(file.getParent() + File.separator + lexFileName+"_result"+File.separator);
+            File resultDir;
+            if(resultDirStr == null)
+                resultDir = new File(file.getParent() + File.separator + lexFileName+"_result"+File.separator);
+            else{
+                resultDir = new File(this.resultDirStr);
+            }
             File resultFile = new File(resultDir, lexFileName+".lex.c");
             if(!resultDir.exists())
                 if(!resultDir.mkdirs()) throw new IOException("无法创建目录: "+resultDir);
 
             LexParser parser = new LexParser(filePath);
-            Visualizer visualizer = new Visualizer(resultDir,true);
+            Visualizer visualizer = new Visualizer(resultDir,printToFile);
 
             NFA nfa = new NFA(parser);
             DFA dfa = new DFA(nfa);
@@ -46,7 +80,7 @@ public class SeuLex {
                     CopyPartBegin +
                         parser.getCopyPart()+
                     LexGenerationPartBegin +
-                        preConfigs + genTransformMatrix() + genSwitchCase() +
+                        preConfigs() + genTransformMatrix() + genSwitchCase() +
                         genYYLex(genCaseAction()) + yyless + yymore +
                     CCodePartBegin +
                         parser.getCCodePart();
@@ -62,7 +96,9 @@ public class SeuLex {
             System.out.println("错误码: "+e.getCode() + ": " + e.getDescription());
             if (e.getOtherInfo() != null) System.out.println(e.getOtherInfo() + '\n');
         } catch (IOException e){
-            System.out.println("print dfa error: "+ e);
+            System.out.println("IO error: "+ e);
+        } catch (Exception e){
+            System.out.println("Other error: "+e);
         }
     }
     private String genTransformMatrix(){
@@ -87,7 +123,7 @@ public class SeuLex {
                     }
                 }
             }
-            res.append(String.join(", ", targets)).append("\n");
+            res.append(String.join(", ", targets)).append(",\n");
         }
         res.append("};\n");
         return res.toString();
@@ -145,26 +181,31 @@ public class SeuLex {
             
             """;
 
-    private static final String preConfigs = """
-            #include <stdio.h>
-            #include <stdlib.h>
-            #include <string.h>
-            #define ECHO fprintf(yyout,"%%s\\\\n",yytext);
-            int yylineno = 1, yyleng = 0;
-            FILE *yyin = NULL, *yyout = NULL;
-            char yytext[1024] = {0};
-            char _cur_buf[1024] = {0};
-            int _cur_char = 0;
-            const int _init_state = 0;
-            int _cur_state = _init_state, _cur_ptr = 0, _cur_buf_ptr = 0, _lat_acc_state = -1, _lat_acc_ptr = 0;
-            int yywrap();
-            """;
+    private String preConfigs() {
+        return String.format(
+                """
+                        #include <stdio.h>
+                        #include <stdlib.h>
+                        #include <string.h>
+                        #define ECHO fprintf(yyout,"%%s\\n",yytext);
+                        
+                        #define DEBUG_MODE = %d
+                        int yylineno = 1, yyleng = 0;
+                        FILE *yyin = NULL, *yyout = NULL;
+                        char yytext[1024] = {0};
+                        char _cur_buf[1024] = {0};
+                        int _cur_char = 0;
+                        const int _init_state = 0;
+                        int _cur_state = 0, _cur_ptr = 0, _cur_buf_ptr = 0, _lat_acc_state = -1, _lat_acc_ptr = 0;
+                        int yywrap();
+                        """, this.debugMode?1:0);
+    }
     private final static String yyless = """
             void yyless(int n) {
                 int delta = strlen(yytext) - n;
                 fseek(yyin, -delta, SEEK_CUR);
                 FILE *yyinCopy = yyin;
-                while (delta--) fgetc(yyinCopy) == '\\\\n' && yylineno--;
+                while (delta--) fgetc(yyinCopy) == '\\n' && yylineno--;
             }
             """;
     private final static String yymore = """

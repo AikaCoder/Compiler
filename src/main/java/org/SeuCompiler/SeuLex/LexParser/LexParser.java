@@ -39,7 +39,7 @@ public class LexParser {
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
             while ((line = br.readLine()) != null)
-                lineList.add(line.trim());
+                lineList.add(line);
         }catch (IOException e) {
             throw new SeuCompilerException(LexParserErrorCode.lex_file_IO_exception, e.getMessage(), e.getCause());
         }
@@ -57,9 +57,9 @@ public class LexParser {
                 throw exception;
             }
         }
-
-        if(state != ParserState.InCCodePart)
-            throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "Lex文件要至少有两个%%");
+        //检测是否到达规则部分或者CCodePart
+        if(state == ParserState.InRegexAliasPart || state == ParserState.InCopyPart)
+            throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "Lex文件结构错误");
     }
 
     /**
@@ -81,9 +81,9 @@ public class LexParser {
         }
         case InCopyPart -> {
             switch (line) {
-            case "%}" -> newState = ParserState.InRegexAliasPart;
             case "%{" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "重复的%{");
             case "%%" -> throw new SeuCompilerException(LexParserErrorCode.bad_lex_file_structure, "%{ %}内不能有%%");
+            case "%}" -> newState = ParserState.InRegexAliasPart;
             default -> this.copyPartBuilder.append(line).append("\n");
             }
         }
@@ -107,7 +107,7 @@ public class LexParser {
      * @param line 读取的行的内容
      */
     private void parserRegexAliasFrom(String line) throws SeuCompilerException {
-        Matcher spaceTest = Pattern.compile("\\s+").matcher(line);
+        Matcher spaceTest = Pattern.compile("\\s+").matcher(line.trim());
         if (!spaceTest.find())
             throw new SeuCompilerException(LexParserErrorCode.invalid_regex_alias, "Regex别名定义中间缺少空格");
         String alias = line.substring(0, spaceTest.start());
@@ -158,4 +158,10 @@ public class LexParser {
         this.actionOrder ++;
     }
 
+    enum ParserState {
+        InRegexAliasPart,   //正则别名部分 在第一个%%前面
+        InCopyPart,         //直接复制部分, 在%{ %}内
+        InRegexActionPart,  //正则-行为部分 在%% %%内
+        InCCodePart,      //用户子程序部分, 在%%后
+    }
 }
