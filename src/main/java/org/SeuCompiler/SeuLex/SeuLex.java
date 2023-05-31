@@ -1,6 +1,5 @@
 package org.SeuCompiler.SeuLex;
 
-import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.SeuCompiler.Exception.SeuCompilerException;
 import org.SeuCompiler.SeuLex.FiniteAutomata.*;
@@ -19,7 +18,6 @@ public class SeuLex {
     private List<State> stateList;   //将集合转换成列表, 便于后续在转换矩阵中确定位置
     private String resultDirStr = null;
     private boolean printToFile = true;
-
     private boolean debugMode = false;
 
     /**
@@ -52,12 +50,10 @@ public class SeuLex {
         try {
             File file = new File(filePath);
             String lexFileName = getFileNameNoEx(file.getName());
-            File resultDir;
-            if(resultDirStr == null)
-                resultDir = new File(file.getParent() + File.separator + lexFileName+"_result"+File.separator);
-            else{
-                resultDir = new File(this.resultDirStr);
-            }
+            File resultDir = new File(Objects.requireNonNullElseGet(
+                    resultDirStr,
+                    () -> file.getParent() + File.separator + lexFileName + "_result" + File.separator)
+            );
             File resultFile = new File(resultDir, lexFileName+".lex.c");
             if(!resultDir.exists())
                 if(!resultDir.mkdirs()) throw new IOException("无法创建目录: "+resultDir);
@@ -189,7 +185,7 @@ public class SeuLex {
                         #include <string.h>
                         #define ECHO fprintf(yyout,"%%s\\n",yytext);
                         
-                        #define DEBUG_MODE = %d
+                        #define DEBUG_MODE %d
                         int yylineno = 1, yyleng = 0;
                         FILE *yyin = NULL, *yyout = NULL;
                         char yytext[1024] = {0};

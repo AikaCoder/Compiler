@@ -96,7 +96,7 @@ public class LR1Analyzer {
         table.put("\\-", "-");
         table.put("\\*", "*");
         table.put("\\?", "?");
-        table.put("\\\"", "\"");
+        table.put("\\\\\"", "\"");
         table.put("\\.", ".");
         table.put("\\'", "'");
         table.put("\\|", "|");
@@ -207,8 +207,7 @@ public class LR1Analyzer {
                             -1;
             assertCondition(id != -1,
                     "Operator declaration not found. This should never occur.");
-            this.operators.add(new LR1Operator(id,
-                    OperatorAssoc.valueOf(decl.assoc().getAssoc()), decl.procedure()));
+            this.operators.add(new LR1Operator(id, decl.assoc(), decl.procedure()));
         }
     }
 

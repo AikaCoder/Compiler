@@ -10,6 +10,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -83,7 +84,7 @@ public class YaccParser {
                         }
                         boolean operatorDefined = false;
                         for (YaccParserOperator op : operatorDecl) {
-                            if (op.tokenName().equals(temp) || op.literal().equals(temp)) {
+                            if (Objects.equals(temp, op.tokenName()) || Objects.equals(temp, op.literal())) {
                                 operatorDefined = true;
                                 break;
                             }

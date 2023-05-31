@@ -6,4 +6,8 @@ package org.SeuCompiler.Yacc.Grammar;
  * @param precedence the bigger, the higher
  */
 public record LR1Operator(int symbolId, OperatorAssoc assoc, int precedence) {
+    public String getAssocStr(){
+        if(assoc == null) return null;
+        return assoc.getAssoc();
+    }
 }
