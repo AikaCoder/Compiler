@@ -10,8 +10,5 @@
         <module name="SeuCompiler" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="SEUCompiler" target="19" />
-    </bytecodeTargetLevel>
   </component>
 </project>

@@ -474,3 +474,8 @@ void yyerror(char const *s)
 	printf("\n%*s\n%*s\n", column, "^", column, s);
 }
 
+int main()
+{
+    return 0;
+}
+

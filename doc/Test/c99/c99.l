@@ -10,7 +10,12 @@ IS                      ((u|U)|(u|U)?(l|L|ll|LL)|(l|L|ll|LL)(u|U))
 #include <stdio.h>
 #include "y.tab.h"
 
+// added by aika
+int check_type(void);
+void comment(void);
 void count(void);
+void error(char const *s);
+char input(void);
 %}
 
 %%
@@ -173,4 +178,19 @@ int check_type(void)
 */
 
 	return IDENTIFIER;
+}
+
+// added by aika
+void error(char const *s)
+{
+	fflush(stdout);
+	printf("\n%*s\n%*s\n", column, "^", column, s);
+}
+
+// added by aika
+char input(void)
+{
+    char temp;
+    scanf("%c", &temp);
+    return temp;
 }
