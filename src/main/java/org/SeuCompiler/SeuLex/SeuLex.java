@@ -185,7 +185,7 @@ public class SeuLex {
                         #include <string.h>
                         #define ECHO fprintf(yyout,"%%s\\n",yytext);
                         
-                        #define DEBUG_MODE %d
+                        #define LEX_DEBUG_MODE %d
                         int yylineno = 1, yyleng = 0;
                         FILE *yyin = NULL, *yyout = NULL;
                         char yytext[1024] = {0};
@@ -230,7 +230,7 @@ public class SeuLex {
                 }
                 while (_cur_state != -1) {
                     _cur_char = fgetc(yyin);
-                    if (DEBUG_MODE) printf("** YYLEX: ** %c | %d\\n", _cur_char, _cur_char);
+                    if (LEX_DEBUG_MODE) printf("** YYLEX: ** %c | %d\\n", _cur_char, _cur_char);
                     _cur_ptr++;
                     if (_cur_char == '\\n') yylineno++, rollbackLines++;
                     _cur_buf[_cur_buf_ptr++] = _cur_char;
@@ -250,6 +250,7 @@ public class SeuLex {
                     memset(yytext, 0, sizeof(yytext));
                     yyleng = strlen(_cur_buf);
                     strcpy(yytext, _cur_buf);
+                    if (LEX_DEBUG_MODE) printf("** YYTEXT: ** %s\\n", yytext);
                     memset(_cur_buf, 0, sizeof(_cur_buf));
                     _cur_buf_ptr = 0;
                     int _lat_acc_state_bak = _lat_acc_state;

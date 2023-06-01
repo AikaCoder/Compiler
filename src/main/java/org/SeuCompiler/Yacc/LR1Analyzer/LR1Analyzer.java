@@ -3,7 +3,7 @@ package org.SeuCompiler.Yacc.LR1Analyzer;
 import lombok.Getter;
 import org.SeuCompiler.Yacc.Grammar.*;
 import org.SeuCompiler.Yacc.YaccParser.*;
-import org.SeuCompiler.Yacc.LR1Analyzer.GrammarSymbol.GrammarSymbolType;
+import org.SeuCompiler.Yacc.Grammar.GrammarSymbol.GrammarSymbolType;
 
 import javax.swing.*;
 import java.util.*;
@@ -40,12 +40,10 @@ public class LR1Analyzer {
         this.first = new ArrayList<>();
 
         // 下面是this._distributeId(yaccParser)
-        this.distrubuteId(yaccParser);
+        this.distributeId(yaccParser);
         this.convertProducer(yaccParser.getProducers());
         this.convertOperator(yaccParser.getOperatorDecl());
-        this.epsilon = this.getSymbolId(
-                new GrammarSymbol(GrammarSymbolType.SPTOKEN, "SP_EPSILON")
-        );
+        this.epsilon = this.getSymbolId(SpType.EPSILON.getSpSymbol());
         System.out.print("\n[ constructLR1DFA or LALRDFA, this might take a long time... ]");
         this.preCalFirst();
         this.constructLR1DFA();
@@ -188,7 +186,7 @@ public class LR1Analyzer {
      */
     public int getSymbolId(GrammarSymbol grammarSymbol) {
         for (GrammarSymbol gs : this.symbols) {
-            if ((grammarSymbol.type() == null || gs.type().getType().equals(grammarSymbol.type().getType()))
+            if ((grammarSymbol.type() == null || gs.type().equals(grammarSymbol.type()))
                     && gs.content().equals(grammarSymbol.content())) {
                 return symbols.indexOf(gs);
             }
@@ -198,15 +196,15 @@ public class LR1Analyzer {
 
     private void convertOperator(List<YaccParserOperator> operatorDecl) {
         for (YaccParserOperator decl : operatorDecl) {
-            int id = !(decl.literal() == null) ?
-                    this.getSymbolId(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.ASCII, decl.literal())) :
-                    !(decl.tokenName() == null) ?
-                            this.getSymbolId(
-                                    new GrammarSymbol(GrammarSymbol.GrammarSymbolType.TOKEN, decl.tokenName())
-                            ) :
-                            -1;
+            int id;
+            if(decl.literal() != null)
+                id = getSymbolId(GrammarSymbol.newASCII(decl.literal()));
+            else if(decl.tokenName() != null)
+                id = getSymbolId(GrammarSymbol.newToken(decl.tokenName()));
+            else id = -1;
             assertCondition(id != -1,
                     "Operator declaration not found. This should never occur.");
+
             this.operators.add(new LR1Operator(id, decl.assoc(), decl.procedure()));
         }
     }
@@ -241,43 +239,25 @@ public class LR1Analyzer {
      * 为文法符号（终结符、非终结符、特殊符号）分配编号
      * // @test pass
      */
-    private void distrubuteId(YaccParser yaccParser) {
+    private void distributeId(YaccParser yaccParser) {
         // 处理方式参考《Flex与Bison》P165
         // 0~127 ASCII文字符号编号
         // 128~X Token编号
         // X+1~Y 非终结符编号
         // Y+1~Y+3 特殊符号
-        for (int i = 0; i < 128; i++) {
-            this.symbols.add(new GrammarSymbol(
-                    GrammarSymbol.GrammarSymbolType.ASCII, Character.toString((char) i)
-            ));
-        }
+        for (int i = 0; i < 128; i++)
+            this.symbols.add(GrammarSymbol.newASCII(i));
 
-        // 标记一下ASCII中的不可打印字符
-        for (int i = 0, ASCII_MIN = 32; i < ASCII_MIN; i++) {
-            this.symbols.set(i, new GrammarSymbol(GrammarSymbol.GrammarSymbolType.ASCII, "[UNPRINTABLE]"));
-        }
+        for (String token : yaccParser.getTokenDecl())
+            this.symbols.add(GrammarSymbol.newToken(token));
 
-        int ASCII_MAX = 126;
-        this.symbols.set(ASCII_MAX + 1,
-                new GrammarSymbol(GrammarSymbol.GrammarSymbolType.ASCII, "[UNPRINTABLE]"));
+        for (String nonTerminal : yaccParser.getNonTerminals())
+            this.symbols.add(GrammarSymbol.newNonTerminal(nonTerminal));
 
-        for (String token : yaccParser.getTokenDecl()) {
-            this.symbols.add(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.TOKEN, token));
-        }
+        for (SpType spType : SpType.values())
+            this.symbols.add(spType.getSpSymbol());
 
-        for (String nonTerminal : yaccParser.getNonTerminals()) {
-            this.symbols.add(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.NONTERMINAL, nonTerminal));
-        }
-
-        for (SpSymbol spSymbol : SpSymbol.values()) {
-            this.symbols.add(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.SPTOKEN, spSymbol.getSpType()));
-        }
-
-        this.startSymbol =
-                this.getSymbolId(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.NONTERMINAL,
-                        yaccParser.getStartSymbol()));
-
+        this.startSymbol = this.getSymbolId(GrammarSymbol.newNonTerminal(yaccParser.getStartSymbol()));
         assert this.startSymbol != -1 : "LR1 startSymbol unset.";
     }
 
@@ -285,12 +265,12 @@ public class LR1Analyzer {
      * 判断符号是否是某个类型
      * type取值限定在'ascii' | 'token' | 'nonterminal' | 'sptoken'
      */
-    private boolean symbolTypeIs(int id, String type) {
-        return this.symbols.get(id).type().getType().equals(type); // 注意这里的两个getType含义不同
+    private boolean symbolTypeIs(int id, GrammarSymbolType type) {
+        return this.symbols.get(id).isType(type);
     }
 
     public String getSymbolString(int id) {
-        return this.symbolTypeIs(id, "ascii") ?
+        return this.symbolTypeIs(id, GrammarSymbolType.ASCII) ?
                 "'" + this.symbols.get(id).content() + "'" :
                 this.symbols.get(id).content();
     }
@@ -306,9 +286,9 @@ public class LR1Analyzer {
      * 预先计算各符号的FIRST集
      */
     public void preCalFirst() {
-        AtomicBoolean changed = new AtomicBoolean(true);
+
         for (int index = 0; index < this.symbols.size(); index++) {
-            if (this.symbols.get(index).type().getType().equals("nonterminal")) {
+            if (this.symbols.get(index).type().equals(GrammarSymbolType.NONTERMINAL)) {
                 this.first.add(new ArrayList<>());
             } else {
                 List<Integer> temp = new ArrayList<>();
@@ -316,41 +296,35 @@ public class LR1Analyzer {
                 this.first.add(temp);
             }
         }
-
-        while (changed.get()) {
-            changed.set(false);
+        boolean changed;
+        do {
+            changed = false;
             for (int index = 0; index < this.symbols.size(); index++) {
-                if (!this.symbols.get(index).type().getType().equals("nonterminal")) continue;
-                int finalIndex = index;
-                this.producersOf(index).forEach(
-                        producer -> {
-                            int i = 0;
-                            AtomicBoolean hasEpsilon = new AtomicBoolean(false);
-                            do {
-                                if (i >= producer.rhs().size()) {
-                                    if (!this.first.get(finalIndex).contains(this.epsilon)) {
-                                        this.first.get(finalIndex).add(this.epsilon);
-                                        changed.set(true);
-                                        break;
-                                    }
-                                }
-                                this.first.get(producer.rhs().get(i)).forEach(
-                                        symbol -> {
-                                            if (!this.first.get(finalIndex).contains(symbol)) {
-                                                this.first.get(finalIndex).add(symbol);
-                                                changed.set(true);
-                                            }
-                                            if (symbol == this.epsilon) {
-                                                hasEpsilon.set(true);
-                                            }
-                                        }
-                                );
-                                i++;
-                            } while (hasEpsilon.get());
+                if( ! symbolTypeIs(index, GrammarSymbolType.NONTERMINAL)) continue;
+                List<Integer> nowFirstList = this.first.get(index);
+                for (LR1Producer producer : this.producersOf(index)) {
+                    int i = 0;
+                    boolean hasEpsilon = false;
+                    do {
+                        if (i >= producer.rhs().size() && ! nowFirstList.contains(this.epsilon)) {
+                            nowFirstList.add(this.epsilon);
+                            changed = true;
+                            break;
                         }
-                );
+                        for (Integer symbol : this.first.get(producer.rhs().get(i))) {
+                            if (!nowFirstList.contains(symbol)) {
+                                nowFirstList.add(symbol);
+                                changed = true;
+                            }
+                            if (symbol == this.epsilon) {
+                                hasEpsilon = true;
+                            }
+                        }
+                        i++;
+                    } while (hasEpsilon);
+                }
             }
-        }
+        } while (changed);
     }
 
     /**
@@ -394,36 +368,27 @@ public class LR1Analyzer {
      */
     private void convertProducer(List<YaccParserProducer> stringProducers) {
         for (YaccParserProducer stringProducer : stringProducers) {
-            int lhs = this.getSymbolId(new GrammarSymbol(
-                    GrammarSymbol.GrammarSymbolType.NONTERMINAL, stringProducer.lhs()
-            ));
+            int lhs = this.getSymbolId(GrammarSymbol.newNonTerminal(stringProducer.lhs()));
             assert lhs != -1 : "lhs not found in symbols. This error should never occur.";
             for (String right : stringProducer.rhs()) {
                 int index = stringProducer.rhs().indexOf(right);
                 List<Integer> rhs = new ArrayList<>();
-                Pattern PATTERN = Pattern.compile("(' '|[^ ]+)");
+                Pattern PATTERN = Pattern.compile("(' '|[^ ]+)");   //匹配空格外的东西, 或者单引号包裹的空格' '. 每个匹配单独分为一组
                 Matcher matcher = PATTERN.matcher(right);
                 while (matcher.find()) {
                     String tmp = matcher.group().trim();
-                    int id = 0;
-                    if (Pattern.matches("'.+'", matcher.group())) {
+                    int id;
+                    if (Pattern.matches("'.+'", matcher.group())) {//   如果匹配到内容被单引号包裹, 即为普通字符
                         tmp = matcher.group().substring(1, matcher.group().length() - 1);
                         if (tmp.charAt(0) == '\\') tmp = cookString(tmp);
-                        id = this.getSymbolId(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.ASCII, tmp));
+                        id = this.getSymbolId(GrammarSymbol.newASCII(tmp));
                     } else {
-                        int a = this.getSymbolId(
-                                new GrammarSymbol(GrammarSymbol.GrammarSymbolType.NONTERMINAL, tmp)
-                        );
-                        int b = this.getSymbolId(
-                                new GrammarSymbol(GrammarSymbol.GrammarSymbolType.TOKEN, tmp)
-                        );
-                        id = id != 0 ? id : a != -1 ? a : b;
+                        int a = this.getSymbolId(GrammarSymbol.newNonTerminal(tmp));
+                        int b = this.getSymbolId(GrammarSymbol.newToken(tmp));
+                        if(a != -1) id = a;
+                        else id = b;
                     }
-                    assert id != -1
-                            :
-                            "symbol not found in symbols. This error should never occur. symbol="
-                                    +
-                                    tmp;
+                    assert id != -1 : "symbol not found in symbols. This error should never occur. symbol=" + tmp;
                     rhs.add(id);
                 }
                 this.producers.add(new LR1Producer(lhs, rhs,
@@ -439,22 +404,17 @@ public class LR1Analyzer {
         StringBuilder newStartSymbolContent = new StringBuilder(
                 this.symbols.get(this.startSymbol).content() + "'"
         );
-        String finalNewStartSymbolContent = newStartSymbolContent.toString();
-        while (
-                this.symbols.stream().anyMatch(
-                        symbol -> symbol.content().equals(finalNewStartSymbolContent)
-                )
+        while (this.symbols.stream().anyMatch(symbol ->
+                symbol.content().equals(newStartSymbolContent.toString()))
         ) {
             newStartSymbolContent.append("'");
         }
-        this.symbols.add(new GrammarSymbol(
-                GrammarSymbol.GrammarSymbolType.NONTERMINAL,
-                newStartSymbolContent.toString()
-        ));
+
+        this.symbols.add(GrammarSymbol.newNonTerminal(newStartSymbolContent.toString()));
         this.producers.add(
                 new LR1Producer(
                         this.symbols.size() - 1,
-                        new ArrayList<>(this.startSymbol),
+                        new ArrayList<>(List.of(this.startSymbol)),
                         "$$ = $1; reduceTo(\"" + newStartSymbolContent + "\");"
                 )
         );
@@ -468,17 +428,12 @@ public class LR1Analyzer {
                                                 this.producers.indexOf(initProducer),
                                                 initProducer,
                                                 0,
-                                                this.getSymbolId(
-                                                        new GrammarSymbol(
-                                                                GrammarSymbol.GrammarSymbolType.SPTOKEN,
-                                                                "SP_END"
-                                                        )
+                                                this.getSymbolId(SpType.END.getSpSymbol())
                                                 )
                                         )
                                 )
                         )
-                )
-        );
+                );
         // 初始化自动机
         LR1DFA dfa = new LR1DFA(0);
         dfa.addState(I0);
@@ -558,7 +513,7 @@ public class LR1Analyzer {
             if (oneItemOfI.dotAtLast()) continue;
             Integer currentSymbol =
                     this.producers.get(oneItemOfI.producer()).rhs().get(oneItemOfI.dotPosition());
-            if (!this.symbolTypeIs(currentSymbol, "nonterminal")) continue; // 非终结符打头才有闭包
+            if (!this.symbolTypeIs(currentSymbol, GrammarSymbolType.NONTERMINAL)) continue; // 非终结符打头才有闭包
             List<LR1Producer> extendProducers = new ArrayList<>();
             for (LR1Producer producerInG : this.producers) { // for G'中的每个产生式
                 // 左手边是当前符号的，就可以作为扩展用
@@ -575,12 +530,8 @@ public class LR1Analyzer {
                                 )
                 );
                 // 存在epsilon作为FIRST符，可以用它“闪过”
-                if (newLookaheads.contains(this.getSymbolId(new GrammarSymbol(
-                        GrammarSymbol.GrammarSymbolType.SPTOKEN,
-                        "SP_EPSILON")))) {
-                    newLookaheads.removeIf(v -> v == this.getSymbolId(
-                            new GrammarSymbol(GrammarSymbol.GrammarSymbolType.SPTOKEN, "SP_EPSILON")
-                    ));
+                if (newLookaheads.contains(this.getSymbolId(SpType.EPSILON.getSpSymbol()))) {
+                    newLookaheads.removeIf(v -> v == this.getSymbolId(SpType.EPSILON.getSpSymbol()));
                     // 闪过，用旧展望符号
                     if (!newLookaheads.contains(lookahead)) {
                         newLookaheads.add(lookahead);
@@ -614,9 +565,9 @@ public class LR1Analyzer {
         List<LR1State> dfaStates = this.dfa.getStates();
         // 初始化ACTIONTable
         for (int i = 0; i < dfaStates.size(); i++) {
-            List<ACTIONTableCell> row = new ArrayList<ACTIONTableCell>();
+            List<ACTIONTableCell> row = new ArrayList<>();
             for (int j = 0; j < this.symbols.size(); j++) {
-                if (this.symbolTypeIs(j, "nonterminal")) continue;
+                if (this.symbolTypeIs(j, GrammarSymbolType.NONTERMINAL)) continue;
                 row.add(new ACTIONTableCell(ACTIONTableCell.ACTIONTableCellType.NONE, -1));
             }
             this.ACTIONTable.add(row);
@@ -625,13 +576,13 @@ public class LR1Analyzer {
         for (int i = 0; i < dfaStates.size(); i++) {
             List<Integer> row = new ArrayList<>();
             for (int j = 0; j < this.symbols.size(); j++) {
-                if (this.symbolTypeIs(j, "nonterminal")) row.add(-1); // GOTO nowhere
+                if (this.symbolTypeIs(j, GrammarSymbolType.NONTERMINAL)) row.add(-1); // GOTO nowhere
             }
             this.GOTOTable.add(row);
         }
         // 初始化倒查表（由于前两个函数通过continue的方式排除不合适的符号，造成编号的错乱，故需要两张倒查表)
         for (int j = 0; j < this.symbols.size(); j++) {
-            if (this.symbolTypeIs(j, "nonterminal")) this.GOTOReverseLookup.add(j);
+            if (this.symbolTypeIs(j, GrammarSymbolType.NONTERMINAL)) this.GOTOReverseLookup.add(j);
             else this.ACTIONReverseLookup.add(j);
         }
         // ===========================
@@ -655,7 +606,7 @@ public class LR1Analyzer {
             for (LR1Item item : dfaStates.get(i).getItems()) {
                 if (item.dotAtLast()) continue; // 没有aβ
                 int a = this.producers.get(item.producer()).rhs().get(item.dotPosition());
-                if (this.symbolTypeIs(a, "nonterminal")) continue;
+                if (this.symbolTypeIs(a, GrammarSymbolType.NONTERMINAL)) continue;
                 LR1State _goto = this.dfa.getStates().get(
                         this.getNext(dfaStates.get(i), this.symbols.get(a))
                 );
@@ -671,7 +622,7 @@ public class LR1Analyzer {
             for (LR1Item item : dfaStates.get(i).getItems()) {
                 if (!item.dotAtLast()) continue;
                 if (item.producer() == this.producers.size() - 1) continue; // 增广产生式也不处理
-                if (this.symbolTypeIs(item.lookahead(), "nonterminal"))
+                if (this.symbolTypeIs(item.lookahead(), GrammarSymbolType.NONTERMINAL))
                     continue; // 展望非终结符的归GOTO表管
                 boolean shouldReplace = false;
                 if (
@@ -691,7 +642,7 @@ public class LR1Analyzer {
                     LR1Operator reduceOperator = null;
                     for (int _i = item.dotPosition() - 1; _i >= 0; _i--) {
                         int symbol = this.producers.get(item.producer()).rhs().get(_i);
-                        if (!this.symbolTypeIs(symbol, "nonterminal")) {
+                        if (!this.symbolTypeIs(symbol, GrammarSymbolType.NONTERMINAL)) {
                             reduceOperator = this.operators.stream()
                                     .filter(x -> x.symbolId() == symbol)
                                     .findFirst().orElse(null);
@@ -745,20 +696,12 @@ public class LR1Analyzer {
                 if (
                         item.producer() == this.producers.size() - 1 &&
                                 item.dotAtLast() &&
-                                item.lookahead() == this.getSymbolId(
-                                        new GrammarSymbol(
-                                                GrammarSymbol.GrammarSymbolType.SPTOKEN, "SP_END"
-                                        )
-                                )
+                                item.lookahead() == this.getSymbolId(SpType.END.getSpSymbol())
                 ) {
                     this.ACTIONTable.get(i).set(
                             lookup.apply(
                                     /*
-                                    this.getSymbolId(
-                                            new GrammarSymbol(
-                                                    GrammarSymbolType.SPTOKEN, "SP_END"
-                                            )
-                                    )
+                                    this.getSymbolId(SpType.END.getSpSymbol())
                                     */
                                     item.lookahead()
                             ),
