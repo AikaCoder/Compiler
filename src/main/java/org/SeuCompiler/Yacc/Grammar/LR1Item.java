@@ -28,8 +28,8 @@ public record LR1Item(int producer, LR1Producer rawProducer, int dotPosition, in
         return new LR1Item(
                 item.producer,
                 item.rawProducer,
-                item.dotPosition,
-                item.lookahead + (go ? 1 : 0)
+                item.dotPosition+ (go ? 1 : 0),
+                item.lookahead
         );
     }
 

@@ -453,7 +453,8 @@ public class LR1Analyzer {
                         .filter(i -> Objects.equals(dfa.getStates().get(i), gotoIX))
                         .findFirst()
                         .orElse(-1); // 存在一致状态要处理
-                if (sameStateCheck != -1) dfa.link(dfa.getStates().indexOf(I), sameStateCheck, X);
+                if (sameStateCheck != -1)
+                    dfa.link(dfa.getStates().indexOf(I), sameStateCheck, X);
                 else {
                     // 新建状态并连接
                     dfa.addState(gotoIX);
@@ -581,6 +582,7 @@ public class LR1Analyzer {
             this.GOTOTable.add(row);
         }
         // 初始化倒查表（由于前两个函数通过continue的方式排除不合适的符号，造成编号的错乱，故需要两张倒查表)
+        //倒查指: 下标为GOTOtable中序号的项, 对应结果是symbol编号
         for (int j = 0; j < this.symbols.size(); j++) {
             if (this.symbolTypeIs(j, GrammarSymbolType.NONTERMINAL)) this.GOTOReverseLookup.add(j);
             else this.ACTIONReverseLookup.add(j);
@@ -699,12 +701,7 @@ public class LR1Analyzer {
                                 item.lookahead() == this.getSymbolId(SpType.END.getSpSymbol())
                 ) {
                     this.ACTIONTable.get(i).set(
-                            lookup.apply(
-                                    /*
-                                    this.getSymbolId(SpType.END.getSpSymbol())
-                                    */
-                                    item.lookahead()
-                            ),
+                            lookup.apply(this.getSymbolId(SpType.END.getSpSymbol())),
                             new ACTIONTableCell(
                                     ACTIONTableCell.ACTIONTableCellType.ACC,
                                     0
@@ -716,16 +713,17 @@ public class LR1Analyzer {
         // ===========================
         // ====== 填充GOTOTable ======
         // ===========================
-        Function<Integer, Integer> lookup_01 =
-                x -> Collections.singletonList(this.GOTOReverseLookup).indexOf(x);
+        Function<Integer, Integer> lookup_01 = x -> this.GOTOReverseLookup.indexOf(x);
         for (int i = 0; i < dfaStates.size(); i++)
-            for (int A = 0; A < this.symbols.size(); A++)
+            for (int A = 0; A < this.symbols.size(); A++) {
+                if (!this.symbols.get(A).isType(GrammarSymbolType.NONTERMINAL)) continue;
                 for (int j = 0; j < dfaStates.size(); j++)
                     if (Objects.equals(this.GOTO(dfaStates.get(i), A), dfaStates.get(j)))
                         this.GOTOTable.get(i).set(
                                 lookup_01.apply(A),
                                 j
                         );
+            }
     }
 
     // 源于LALR.ts的函数中需要用到的一个类
