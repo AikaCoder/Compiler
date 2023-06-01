@@ -36,9 +36,15 @@ public class CodeGenerator {
         }
         res.append(
                 """
-                    default: return "error";
-                  }
-                }"""
+                                case YACC_NOTHING: return "YACC_NOTHING";
+                                case YACC_ACCEPT: return "YACC_ACCEPT";
+                                case YACC_ERROR: return "YACC_ERROR";
+                                default:
+                                      if(id>127) return "NON_TERMINAL";
+                                      else if(0<=id && id<=127) return "ASCII";
+                                      else return "error";
+                          }
+                        }"""
         );
         return res.toString();
     }
@@ -165,10 +171,12 @@ public class CodeGenerator {
                     strcpy(symbolAttr[symbolAttrSize++], temp);
                 }
                 int stateStackPop(int popNum) {
+                    int initPopNum = popNum;
                     while (popNum--) {
                         if (stateStackSize == 0) throw(ArrayLowerBoundExceeded);
                         stateStackSize--;
                     }
+                    if (YACC_DEBUG_MODE) printf("Stack pops %d state, state now is no.%d\\n", initPopNum, stateStack[stateStackSize - 1]);
                     if (stateStackSize == 0) return YACC_NOTHING;
                     else return stateStack[stateStackSize - 1];
                 }
@@ -308,8 +316,8 @@ public class CodeGenerator {
         codeBuilder.append("int dealWith(int symbol) {\n");
         codeBuilder.append("  if (symbol == WHITESPACE) return YACC_NOTHING;\n");
         codeBuilder.append("  if (stateStackSize < 1) throw(ArrayLowerBoundExceeded);\n");
-        codeBuilder.append("  if (YACC_DEBUG_MODE) printf(\"Received symbol no.%d: %s\\n\", symbol, getTokenNameById(symbol));\n");
         codeBuilder.append("  int state = stateStack[stateStackSize - 1];\n");
+        codeBuilder.append("  if (YACC_DEBUG_MODE) printf(\"State no.%d received symbol no.%d: %s\\n\", state, symbol, getTokenNameById(symbol));\n");
         codeBuilder.append("  struct TableCell cell = table[state][symbol];\n");
         codeBuilder.append("  switch(cell.action) {\n");
         codeBuilder.append("    case 0:\n");

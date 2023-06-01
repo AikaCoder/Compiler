@@ -228,7 +228,7 @@ public class SeuLex {
                 int rollbackLines = 0;
                 if (yyout == NULL) yyout = stdout;
                 if (_cur_char == EOF) {
-                    if (yywrap() == 1) return 0;
+                    if (yywrap() == 1) return 0;    //YACC_END
                     else {
                         yylineno = 1;
                         yyleng = 0;
@@ -274,8 +274,8 @@ public class SeuLex {
                     
                     }
                 }
-                else return -1; // error
-                return 0;
+                else return -1; // YACC_ERROR
+                return -2;      // YACC_NOTHING
             }
             """;
 
