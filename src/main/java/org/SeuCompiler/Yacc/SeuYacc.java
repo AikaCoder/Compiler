@@ -14,8 +14,9 @@ import java.util.Objects;
 @NoArgsConstructor
 public class SeuYacc {
     private String resultDirStr = null;
-
     private boolean debugMode = false;
+    private File yaccTabHFile;
+    private File yaccCFile;
 
     public void setResultDirStr(String resultDirStr) {
         this.resultDirStr = resultDirStr;
@@ -23,6 +24,14 @@ public class SeuYacc {
 
     public void setDebugMode(boolean debugMode) {
         this.debugMode = debugMode;
+    }
+
+    public File getYaccTabHFile() {
+        return yaccTabHFile;
+    }
+
+    public File getYaccCFile() {
+        return yaccCFile;
     }
 
     public void analyzeYacc(String filePath){
@@ -42,21 +51,21 @@ public class SeuYacc {
             LR1Analyzer analyzer = new LR1Analyzer(parser, false);
 
             System.out.println("generating yy.tab.h file ...");
-            File tabHFile = new File(resultDir, "yy.tab.h");
-            BufferedWriter tabHOut = new BufferedWriter(new FileWriter(tabHFile));
+            this.yaccTabHFile = new File(resultDir, "yy.tab.h");
+            BufferedWriter tabHOut = new BufferedWriter(new FileWriter(yaccTabHFile));
             tabHOut.write(CodeGenerator.generateYTABH(analyzer));
             tabHOut.flush();
             tabHOut.close();
-            System.out.println("print yy.tab.h of" + yaccFileName+" in " + tabHFile);
+            System.out.println("print yy.tab.h of" + yaccFileName+" in " + yaccTabHFile);
 
             System.out.println("generating yacc.c file ...");
             String yyacRes = CodeGenerator.generateYTABC(parser, analyzer, this.debugMode);
-            File yaccResFile = new File(resultDir, yaccFileName+".yacc.c");
-            BufferedWriter yaccOut = new BufferedWriter(new FileWriter(yaccResFile));
+            this.yaccCFile = new File(resultDir, yaccFileName+".yacc.c");
+            BufferedWriter yaccOut = new BufferedWriter(new FileWriter(yaccCFile));
             yaccOut.write(yyacRes);
             yaccOut.flush();
             yaccOut.close();
-            System.out.println("print yacc.c of" + yaccFileName+" in " + yaccResFile);
+            System.out.println("print yacc.c of" + yaccFileName+" in " + yaccCFile);
 
 
         }catch (Exception e){

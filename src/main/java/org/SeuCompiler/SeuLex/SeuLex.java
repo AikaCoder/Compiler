@@ -17,8 +17,9 @@ public class SeuLex {
     private DFA miniDFA;
     private List<State> stateList;   //将集合转换成列表, 便于后续在转换矩阵中确定位置
     private String resultDirStr = null;
-    private boolean printToFile = true;
+    private boolean visualize = true;
     private boolean debugMode = false;
+    private File lexCFile;
 
     /**
      * 设置结果的输入文件夹.
@@ -30,20 +31,23 @@ public class SeuLex {
     }
 
     /**
-     * 中间过程的FA是否存放在文件中, 默认为true.
-     * 若为false则直接在命令行窗口打印.
-     * @param print 是否打印到文件
-     */
-    public void setPrintFAToFile(boolean print){
-        this.printToFile = print;
-    }
-
-    /**
      * 选择最后的结果是否打开debug模式
      * @param mode debug模式, 默认为false, 关闭.
      */
     public void setDebugMode(boolean mode){
         this.debugMode = mode;
+    }
+
+    /**
+     * @param visualize 选择是否输出DFA, NFA
+     */
+    public void setVisualize(boolean visualize) {
+        this.visualize = visualize;
+    }
+
+
+    public File getLexCFile() {
+        return lexCFile;
     }
 
     public void analyseLex(String filePath) {
@@ -54,19 +58,26 @@ public class SeuLex {
                     resultDirStr,
                     () -> file.getParent() + File.separator + lexFileName + "_result" + File.separator)
             );
-            File resultFile = new File(resultDir, lexFileName+".lex.c");
+            this.lexCFile = new File(resultDir, lexFileName+".lex.c");
+
             if(!resultDir.exists())
                 if(!resultDir.mkdirs()) throw new IOException("无法创建目录: "+resultDir);
 
             LexParser parser = new LexParser(filePath);
-            Visualizer visualizer = new Visualizer(resultDir,printToFile);
+            Visualizer visualizer = null;
+            if(visualize)
+                visualizer = new Visualizer(resultDir);
 
             NFA nfa = new NFA(parser);
             DFA dfa = new DFA(nfa);
             this.miniDFA = dfa.minimize();
-            visualizer.print(nfa, lexFileName+"_NFA");
-            visualizer.print(dfa, lexFileName+"_DFA");
-            visualizer.print(this.miniDFA, lexFileName+"_miniDFA");
+            if (visualize) {
+                assert visualizer != null;
+                visualizer.print(nfa, lexFileName+"_NFA");
+                visualizer.print(dfa, lexFileName+"_DFA");
+                visualizer.print(this.miniDFA, lexFileName+"_miniDFA");
+            }
+
 
             System.out.println("generating C code...");
             this.stateList = new ArrayList<>(miniDFA.getStates());
@@ -81,11 +92,11 @@ public class SeuLex {
                     CCodePartBegin +
                         parser.getCCodePart();
 
-            BufferedWriter out = new BufferedWriter(new FileWriter(resultFile));
+            BufferedWriter out = new BufferedWriter(new FileWriter(lexCFile));
             out.write(res);
             out.flush();
             out.close();
-            System.out.println("print lex.c of"+lexFileName+" in "+ resultFile);
+            System.out.println("print lex.c of"+lexFileName+" in "+ lexCFile);
 
         } catch (SeuCompilerException e) {
             if (e.getLineNum() != null) System.out.println("error at line " + e.getLineNum());

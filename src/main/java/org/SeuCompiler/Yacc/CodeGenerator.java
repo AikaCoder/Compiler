@@ -262,7 +262,7 @@ public class CodeGenerator {
                 .append("    int target;\n")
                 .append("};\n")
                 .append("struct TableCell table[").append(stateCount)
-                .append("][").append(symbolCount).append("] = {");
+                .append("][").append(symbolCount).append("] = {\n");
         for (int state = 0; state < stateCount; state++) {
             int nonCnt = 0;
             int nonnonCnt = 0;
@@ -292,9 +292,10 @@ public class CodeGenerator {
                 code.append("(struct TableCell){").append(action)
                         .append(", ").append(target).append("},");
             }
+            code.append('\n');
         }
         code.setLength(code.length() - 1);
-        code.append("};\n");
+        code.append("\n};\n");
         return code.toString();
     }
 

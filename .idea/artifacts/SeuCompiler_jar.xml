@@ -1,0 +1,13 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="SeuCompiler:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/SeuCompiler_jar</output-path>
+    <root id="archive" name="SeuCompiler.jar">
+      <element id="module-output" name="SeuCompiler" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/com/beust/jcommander/1.82/jcommander-1.82.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.26/lombok-1.18.26.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/commons-lang/commons-lang/2.6/commons-lang-2.6.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/jetbrains/annotations/24.0.1/annotations-24.0.1.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

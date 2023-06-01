@@ -19,9 +19,8 @@ import java.io.IOException;
 @Data
 public class Visualizer {
     private File printDirectory = new File(System.getProperty("user.dir")+File.separator+"doc"+File.separator+"result"+File.separator);
-    private boolean printInfile = true;
     public void print(NFA nfa, String nfaName){
-        StringBuilder builder = getBuilderFrom(nfa, nfaName);
+        StringBuilder builder = getBuilderFrom(nfa);
 
         builder.append("\ntransform table\n").append(String.format("\t%-8s%-8s%-20s\n", "start", "char", "end"));
         nfa.getTransforms().getTransformMap().forEach((start, transform) -> transform.getMap().forEach(((faChar, ends) -> {
@@ -36,7 +35,7 @@ public class Visualizer {
     }
 
     public void print(DFA dfa, String dfaName){
-        StringBuilder builder = getBuilderFrom(dfa, dfaName);
+        StringBuilder builder = getBuilderFrom(dfa);
 
         builder.append("\ntransform table\n").append(String.format("\t%-8s%-8s%-20s\n", "start", "char", "end"));
         dfa.getTransforms().forEach((start, transform) -> transform.forEach(((faChar, end) ->
@@ -47,31 +46,25 @@ public class Visualizer {
     }
 
     private void printBuilder(StringBuilder builder, String filename){
-        if(printInfile){
-            try{
-                File file = new File(printDirectory, filename+".txt");
-                if(!printDirectory.exists())
-                    if(!printDirectory.mkdirs()) throw new IOException("未能新建"+printDirectory);
-                if(file.exists())
-                    if(!file.delete()) throw new IOException("未能删除"+file);
-                if(!file.createNewFile()) throw new IOException("未能创建"+file);
+        try{
+            File file = new File(printDirectory, filename+".txt");
+            if(!printDirectory.exists())
+                if(!printDirectory.mkdirs()) throw new IOException("未能新建"+printDirectory);
+            if(file.exists())
+                if(!file.delete()) throw new IOException("未能删除"+file);
+            if(!file.createNewFile()) throw new IOException("未能创建"+file);
 
-                BufferedWriter out = new BufferedWriter(new FileWriter(file));
-                out.write(builder.toString());
-                out.flush();
-                out.close();
-                System.out.println("print dfa "+filename+" in "+file);
-            } catch (IOException e) {
-                System.out.println("print dfa error: "+ e);
-            }
-        }
-        else{
-            System.out.println("======== print "+filename+" ========");
-            System.out.print(builder);
+            BufferedWriter out = new BufferedWriter(new FileWriter(file));
+            out.write(builder.toString());
+            out.flush();
+            out.close();
+            System.out.println("print dfa "+filename+" in "+file);
+        } catch (IOException e) {
+            System.out.println("print dfa error: "+ e);
         }
     }
 
-    private @NotNull StringBuilder getBuilderFrom(FA fa, String name){
+    private @NotNull StringBuilder getBuilderFrom(FA fa){
         StringBuilder builder = new StringBuilder("start states:\n");
         builder.append("\t").append(fa.getStartState().getIndex()).append("\n");
 
