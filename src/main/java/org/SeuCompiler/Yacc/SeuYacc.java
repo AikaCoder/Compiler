@@ -67,6 +67,9 @@ public class SeuYacc {
             yaccOut.close();
             System.out.println("print yacc.c of" + yaccFileName+" in " + yaccCFile);
 
+            Visualizer visualizer = new Visualizer();
+            visualizer.setResultDir(this.resultDirStr);
+            visualizer.visualizeACTIONGOTOTable(analyzer, false);
 
         }catch (Exception e){
             System.out.println("Other error: "+e);

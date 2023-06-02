@@ -1,7 +1,7 @@
 package org.SeuCompiler.Yacc;
 
 import org.SeuCompiler.Yacc.Grammar.LR1Producer;
-import org.SeuCompiler.Yacc.LR1Analyzer.ACTIONTableCell;
+import org.SeuCompiler.Yacc.LR1Analyzer.ActionTableCell;
 import org.SeuCompiler.Yacc.Grammar.GrammarSymbol;
 import org.SeuCompiler.Yacc.LR1Analyzer.LR1Analyzer;
 import org.SeuCompiler.Yacc.YaccParser.YaccParser;
@@ -15,7 +15,7 @@ public class CodeGenerator {
         res.append("#define Y_TAB_H_\n");
         res.append("#define WHITESPACE -10\n");
         for (int i = 0; i < analyzer.getSymbols().size(); i++) {
-            if (analyzer.getSymbols().get(i).isType(GrammarSymbolType.SPTOKEN) || analyzer.getSymbols().get(i).isType(GrammarSymbolType.TOKEN)) {
+            if (analyzer.getSymbols().get(i).isSpecialToken() || analyzer.getSymbols().get(i).isType(GrammarSymbolType.TOKEN)) {
                 //res.append("#define " + analyzer.symbols.get(i).getContent() + " " + i + "\n");
                 res.append("#define ").append(analyzer.getSymbols().get(i).content()).append(" ").append(i).append("\n");
             }
@@ -28,9 +28,9 @@ public class CodeGenerator {
         StringBuilder res = new StringBuilder("const char* getTokenNameById(int id){\n");
         res.append("  switch(id){\n");
         for (int i = 0; i < analyzer.getSymbols().size(); i++) {
-            GrammarSymbolType nowType = analyzer.getSymbols().get(i).type();
+            GrammarSymbol nowSymbol = analyzer.getSymbols().get(i);
             String content = analyzer.getSymbols().get(i).content();
-            if (nowType.equals(GrammarSymbolType.TOKEN) || nowType.equals(GrammarSymbolType.SPTOKEN)) {
+            if (nowSymbol.isType(GrammarSymbolType.TOKEN) || nowSymbol.isSpecialToken()) {
                 res.append(String.format("    case %s: return \"%s\";\n",content,content));
             }
         }
@@ -215,7 +215,7 @@ public class CodeGenerator {
                 "int stateStackSize = 0;\n" +
                 //int EOFIndex = ${analyzer._getSymbolId(SpSymbol.END)};
                 //END: { type: 'sptoken', content: 'SP_END' } as GrammarSymbol,
-                String.format("int EOFIndex = %d;\n", analyzer.getSymbolId(new GrammarSymbol(GrammarSymbol.GrammarSymbolType.SPTOKEN, "SP_END"))) +
+                String.format("int EOFIndex = %d;\n", analyzer.getSymbolId(GrammarSymbol.newSpEnd())) +
                 "char *symbolAttr[SYMBOL_ATTR_LIMIT];\n" +
                 "int symbolAttrSize = 0;\n" +
                 "char *curAttr = NULL;\n" +
@@ -278,11 +278,11 @@ public class CodeGenerator {
                 int action = -1;
                 int target = 0;
                 GrammarSymbol sym = analyzer.getSymbols().get(symbol);
-                if (sym.isType(GrammarSymbolType.NONTERMINAL)) {
+                if (sym.isType(GrammarSymbolType.NON_TERMINAL)) {
                     action = 1;
                     target = analyzer.getGOTOTable().get(state).get(nonCnt++);
                 } else {
-                    ACTIONTableCell lr1Action = analyzer.getACTIONTable().get(state).get(nonnonCnt);
+                    ActionTableCell lr1Action = analyzer.getACTIONTable().get(state).get(nonnonCnt);
                     switch (lr1Action.type().getType()) {
                         case "shift" -> {
                             action = 2;
@@ -458,7 +458,7 @@ public class CodeGenerator {
         return "int yyparse() {\n" +
                 "  if (yyout == NULL) yyout = stdout;\n" +
                 "  int token;\n" +
-                "  stateStackPush(" + analyzer.getDfa().getStartStateId() + ");\n" +
+                "  stateStackPush(" + analyzer.getDfa().getStates().indexOf(analyzer.getDfa().getStartState()) + ");\n" +
                 "  while (token != YACC_ACCEPT && (token = yylex()) && token != YACC_ERROR) {\n" +
                 "    do {\n" +
                 "      token = dealWith(token);\n" +

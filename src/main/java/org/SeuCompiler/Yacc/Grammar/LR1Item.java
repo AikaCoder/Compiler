@@ -2,6 +2,7 @@ package org.SeuCompiler.Yacc.Grammar;
 
 import lombok.Getter;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -10,24 +11,21 @@ import java.util.Objects;
  * 将多个展望符的，拆分成不同的项目，每个项目只有一个展望符号
  *
  * @param producer    在LR1Analyzer._producers中的下标
- * @param rawProducer 历史遗留产物
  * @param dotPosition producer.rhs的点号位置，规定0号位为最左（所有符号之前）位置
  * @param lookahead   展望符（终结符）
  */
 
-public record LR1Item(int producer, LR1Producer rawProducer, int dotPosition, int lookahead) {
-    public LR1Item(int producer, LR1Producer rawProducer, int dotPosition, int lookahead) {
+public record LR1Item(LR1Producer producer, int dotPosition, GrammarSymbol lookahead) {
+    public LR1Item(LR1Producer producer, int dotPosition, GrammarSymbol lookahead) {
         this.producer = producer;
         this.dotPosition = dotPosition;
         this.lookahead = lookahead;
-        this.rawProducer = new LR1Producer(rawProducer.lhs(), rawProducer.rhs(), rawProducer.action());
     }
 
     // 深拷贝
     public static LR1Item copy(LR1Item item, boolean go) {
         return new LR1Item(
                 item.producer,
-                item.rawProducer,
                 item.dotPosition+ (go ? 1 : 0),
                 item.lookahead
         );
@@ -46,6 +44,6 @@ public record LR1Item(int producer, LR1Producer rawProducer, int dotPosition, in
     }
 
     public boolean dotAtLast() {
-        return this.dotPosition == this.rawProducer.rhs().size();
+        return this.dotPosition == this.producer.rhs().size();
     }
 }

@@ -84,14 +84,15 @@ public class YaccParser {
                         }
                         boolean operatorDefined = false;
                         for (YaccParserOperator op : operatorDecl) {
-                            if (Objects.equals(temp, op.tokenName()) || Objects.equals(temp, op.literal())) {
+                            if (Objects.equals(temp, op.tokenName()) || Objects.equals(temp.charAt(0), op.literal())) {
                                 operatorDefined = true;
                                 break;
                             }
                         }
                         assert !operatorDefined : "Operator redefined: " + temp;
                         if (literalOnly) {
-                            operatorDecl.add(new YaccParserOperator(null, temp, OperatorAssoc.sTy(assoc), currentPrecedence));
+                            assert temp.length() == 1;
+                            operatorDecl.add(new YaccParserOperator(null, temp.charAt(0), OperatorAssoc.sTy(assoc), currentPrecedence));
                         } else {
                             operatorDecl.add(new YaccParserOperator(temp, null, OperatorAssoc.sTy(assoc), currentPrecedence));
                         }
